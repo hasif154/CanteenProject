@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Your order receipt - Sathyabama Canteen">
+    <title>Receipt - Sathyabama Canteen</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="static/styles.css">
+    <!-- QR Code Library - Using a more reliable CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+
+<body class="receipt-page">
+    <div class="receipt-container">
+        <!-- Success Animation -->
+        <div class="success-animation">
+            <div class="success-icon">✓</div>
+            <h1 class="success-text">Order Placed!</h1>
+        </div>
+
+        <!-- Receipt Card -->
+        <div class="receipt-card" id="receiptCard">
+            <div class="receipt-header">
+                <h2>🍽️ Sathyabama Canteen</h2>
+                <div class="order-id" id="orderIdDisplay">Loading...</div>
+            </div>
+
+            <div class="receipt-body">
+                <!-- Student Info -->
+                <div class="receipt-info">
+                    <div class="info-item">
+                        <div class="info-label">Register Number</div>
+                        <div class="info-value" id="registerNumberDisplay">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Student Name</div>
+                        <div class="info-value" id="studentNameDisplay">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Date & Time</div>
+                        <div class="info-value" id="timestampDisplay">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Status</div>
+                        <div class="info-value">
+                            <span class="status-badge" id="orderStatus">
+                                <span>✓</span> CONFIRMED
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Items List -->
+                <div class="receipt-items">
+                    <h4>Order Items</h4>
+                    <div id="itemsList">
+                        <!-- Items will be rendered here -->
+                    </div>
+                </div>
+
+                <!-- Total -->
+                <div class="receipt-total">
+                    <span class="label">Total Amount</span>
+                    <span class="amount">₹<span id="totalAmount">0</span></span>
+                </div>
+            </div>
+
+            <!-- QR Code Section -->
+            <div class="receipt-qr">
+                <div class="qr-code" id="qrCode">
+                    <!-- QR will be rendered here -->
+                </div>
+                <p class="qr-hint">Show this QR code at the counter</p>
+            </div>
+
+            <!-- Actions -->
+            <div class="receipt-actions">
+                <button class="btn-primary" id="newOrderBtn">
+                    <span>🍽️</span>
+                    <span>Order More</span>
+                </button>
+                <button class="btn-secondary" id="logoutBtn">
+                    <span>🚪</span>
+                    <span>Logout</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // Initialization
+        // ============================================
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Get student info from localStorage
+            const registerNumber = localStorage.getItem('registerNumber');
+            const studentName = localStorage.getItem('studentName');
+
+            if (!registerNumber || !studentName) {
+                alert('Session expired. Please login again.');
+                window.location.href = '/';
+                return;
+            }
+
+            // Get order ID from URL or localStorage
+            const urlParams = new URLSearchParams(window.location.search);
+            let orderId = urlParams.get('order_id') || localStorage.getItem('lastOrderId');
+
+            // Try to get order from localStorage first (for immediate display)
+            const storedOrder = localStorage.getItem('lastOrder');
+
+            if (storedOrder) {
+                const order = JSON.parse(storedOrder);
+                renderReceipt(order, registerNumber, studentName);
+            } else if (orderId) {
+                // Fetch from server
+                await fetchOrderDetails(orderId, registerNumber, studentName);
+            } else {
+                alert('No order found. Redirecting to menu...');
+                window.location.href = '/menu';
+                return;
+            }
+
+            // Set up event listeners
+            setupEventListeners();
+        });
+
+        // ============================================
+        // API Functions
+        // ============================================
+        async function fetchOrderDetails(orderId, registerNumber, studentName) {
+            try {
+                const response = await fetch(`/api/order/${orderId}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    renderReceipt(data.order, registerNumber, studentName);
+                } else {
+                    alert('Failed to load order details');
+                    window.location.href = '/menu';
+                }
+            } catch (error) {
+                console.error('Error fetching order:', error);
+                // Use stored data if available
+                const storedOrder = localStorage.getItem('lastOrder');
+                if (storedOrder) {
+                    renderReceipt(JSON.parse(storedOrder), registerNumber, studentName);
+                } else {
+                    alert('Connection error. Please try again.');
+                }
+            }
+        }
+
+        // ============================================
+        // Rendering
+        // ============================================
+        function renderReceipt(order, registerNumber, studentName) {
+            // Order ID
+            document.getElementById('orderIdDisplay').textContent = '#' + order.id.toUpperCase();
+
+            // Student Info
+            document.getElementById('registerNumberDisplay').textContent = registerNumber;
+            document.getElementById('studentNameDisplay').textContent = studentName;
+
+            // Timestamp
+            const date = new Date(order.created_at);
+            document.getElementById('timestampDisplay').textContent = formatDateTime(date);
+
+            // Items
+            const itemsList = document.getElementById('itemsList');
+            itemsList.innerHTML = order.items.map(item => `
+                <div class="receipt-item">
+                    <div class="receipt-item-info">
+                        <span class="receipt-item-qty">${item.quantity}×</span>
+                        <span class="receipt-item-name">${item.emoji} ${item.name}</span>
+                    </div>
+                    <span class="receipt-item-price">₹${item.price * item.quantity}</span>
+                </div>
+            `).join('');
+
+            // Total
+            document.getElementById('totalAmount').textContent = order.total_amount;
+
+            // Generate QR Code
+            generateQRCode(order.id, registerNumber, studentName, order.total_amount);
+        }
+
+        function formatDateTime(date) {
+            const options = {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            };
+            return date.toLocaleDateString('en-IN', options);
+        }
+
+        function generateQRCode(orderId, registerNumber, studentName, total) {
+            const qrContainer = document.getElementById('qrCode');
+
+            // Clear any existing content
+            qrContainer.innerHTML = '';
+
+            // QR content - simple string format
+            const qrContent = `SATHYABAMA-CANTEEN|Order:${orderId.toUpperCase()}|Reg:${registerNumber}|Name:${studentName}|Total:Rs.${total}`;
+
+            try {
+                // Check if QRCode library is available
+                if (typeof QRCode !== 'undefined') {
+                    // Create QR code using qrcodejs library
+                    new QRCode(qrContainer, {
+                        text: qrContent,
+                        width: 140,
+                        height: 140,
+                        colorDark: "#1e3a8a",
+                        colorLight: "#ffffff",
+                        correctLevel: QRCode.CorrectLevel.M
+                    });
+                    console.log('QR Code generated successfully');
+                } else {
+                    // Fallback: Create a visual placeholder with order details
+                    createQRFallback(qrContainer, orderId);
+                }
+            } catch (error) {
+                console.error('QR Code generation error:', error);
+                createQRFallback(qrContainer, orderId);
+            }
+        }
+
+        function createQRFallback(container, orderId) {
+            // Fallback visual QR-like pattern
+            container.innerHTML = `
+                <div style="
+                    width: 140px;
+                    height: 140px;
+                    background: white;
+                    border: 3px solid #1e3a8a;
+                    border-radius: 12px;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                    padding: 15px;
+                ">
+                    <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#1e3a8a" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7" rx="1"/>
+                        <rect x="14" y="3" width="7" height="7" rx="1"/>
+                        <rect x="3" y="14" width="7" height="7" rx="1"/>
+                        <rect x="14" y="14" width="3" height="3"/>
+                        <rect x="18" y="14" width="3" height="3"/>
+                        <rect x="14" y="18" width="3" height="3"/>
+                        <rect x="18" y="18" width="3" height="3"/>
+                    </svg>
+                    <div style="
+                        font-size: 11px;
+                        font-weight: 700;
+                        color: #1e3a8a;
+                        text-align: center;
+                        font-family: monospace;
+                    ">#${orderId.toUpperCase()}</div>
+                </div>
+            `;
+        }
+
+        // ============================================
+        // Event Listeners
+        // ============================================
+        function setupEventListeners() {
+            // New order button
+            document.getElementById('newOrderBtn').addEventListener('click', () => {
+                // Clear last order data
+                localStorage.removeItem('lastOrderId');
+                localStorage.removeItem('lastOrder');
+                window.location.href = '/menu';
+            });
+
+            // Logout button
+            document.getElementById('logoutBtn').addEventListener('click', () => {
+                localStorage.clear();
+                window.location.href = '/';
+            });
+        }
+    </script>
+</body>
+
+</html>

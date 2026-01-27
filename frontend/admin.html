@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Admin Dashboard - Sathyabama Canteen">
+    <title>Admin - Sathyabama Canteen</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="static/styles.css">
+    <!-- QR Code Scanner Library -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+</head>
+
+<body class="admin-page">
+    <!-- Admin Header -->
+    <header class="admin-header">
+        <div class="admin-header-content">
+            <div class="admin-title">
+                <span>🍽️</span>
+                <h1>Sathyabama Canteen</h1>
+                <span class="admin-badge">ADMIN</span>
+            </div>
+            <div class="header-actions">
+                <button class="scan-btn" id="scanBtn">
+                    <span>📷</span>
+                    <span>Scan QR</span>
+                </button>
+                <button class="refresh-btn" id="refreshBtn">
+                    <span>🔄</span>
+                    <span>Refresh</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Stats Section -->
+    <section class="admin-stats" id="statsSection">
+        <div class="stat-card highlight">
+            <div class="stat-value" id="totalOrders">0</div>
+            <div class="stat-label">Total Orders</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="pendingOrders">0</div>
+            <div class="stat-label">Pending Pickup</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="collectedOrders">0</div>
+            <div class="stat-label">Collected</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="totalRevenue">₹0</div>
+            <div class="stat-label">Revenue</div>
+        </div>
+    </section>
+
+    <!-- Orders Section -->
+    <section class="orders-section">
+        <div class="section-header">
+            <h2>📋 Orders</h2>
+            <div class="filter-tabs">
+                <button class="filter-btn active" data-filter="all">All</button>
+                <button class="filter-btn" data-filter="pending">Pending</button>
+                <button class="filter-btn" data-filter="collected">Collected</button>
+            </div>
+        </div>
+
+        <div class="orders-list" id="ordersList">
+            <div class="loading">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Scanner Modal -->
+    <div class="modal-overlay" id="scannerModal">
+        <div class="scanner-modal">
+            <div class="modal-header">
+                <h3>📷 Scan Order QR</h3>
+                <button class="close-modal" id="closeScannerModal">×</button>
+            </div>
+            <div class="scanner-body">
+                <div id="reader"></div>
+                <p class="scanner-instruction">Point camera at the student's receipt QR code</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // State
+        // ============================================
+        let allOrders = [];
+        let currentFilter = 'all';
+
+        // ============================================
+        // Initialization
+        // ============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchOrders();
+            setupEventListeners();
+
+            // Auto-refresh every 30 seconds
+            setInterval(fetchOrders, 30000);
+        });
+
+        // ============================================
+        // API Functions
+        // ============================================
+        async function fetchOrders() {
+            try {
+                const response = await fetch('/api/admin/orders');
+                const data = await response.json();
+
+                if (data.success) {
+                    allOrders = data.orders || [];
+                    // Sort by created_at descending (newest first)
+                    allOrders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                    updateStats();
+                    renderOrders();
+                }
+            } catch (error) {
+                console.error('Error fetching orders:', error);
+                document.getElementById('ordersList').innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">😕</div>
+                        <h3>Failed to load orders</h3>
+                        <p>Please refresh the page</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function markAsCollected(orderId) {
+            try {
+                const response = await fetch('/api/admin/order/collect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ order_id: orderId })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Update local state
+                    const order = allOrders.find(o => o.id === orderId);
+                    if (order) {
+                        order.order_status = 'COLLECTED';
+                        order.collected_at = new Date().toISOString();
+                    }
+                    updateStats();
+                    renderOrders();
+                } else {
+                    alert(data.error || 'Failed to mark as collected');
+                }
+            } catch (error) {
+                console.error('Error marking order:', error);
+                alert('Connection error. Please try again.');
+            }
+        }
+
+        // ============================================
+        // Rendering
+        // ============================================
+        function updateStats() {
+            const total = allOrders.length;
+            const pending = allOrders.filter(o => o.order_status !== 'COLLECTED');
+            const collected = allOrders.filter(o => o.order_status === 'COLLECTED');
+            const revenue = allOrders.reduce((sum, o) => sum + o.total_amount, 0);
+
+            document.getElementById('totalOrders').textContent = total;
+            document.getElementById('pendingOrders').textContent = pending.length;
+            document.getElementById('collectedOrders').textContent = collected.length;
+            document.getElementById('totalRevenue').textContent = '₹' + revenue;
+        }
+
+        function renderOrders() {
+            const container = document.getElementById('ordersList');
+
+            // Filter orders
+            let filteredOrders = allOrders;
+
+            if (currentFilter === 'pending') {
+                filteredOrders = allOrders.filter(o => o.order_status !== 'COLLECTED');
+            } else if (currentFilter === 'collected') {
+                filteredOrders = allOrders.filter(o => o.order_status === 'COLLECTED');
+            }
+
+            if (filteredOrders.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">📭</div>
+                        <h3>No orders found</h3>
+                        <p>${currentFilter === 'all' ? 'Waiting for orders...' : 'No ' + currentFilter + ' orders'}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filteredOrders.map(order => `
+                <div class="order-card ${order.order_status === 'COLLECTED' ? 'collected' : ''}">
+                    <div class="order-header">
+                        <div class="order-id-badge">
+                            <span class="id">#${order.id.toUpperCase()}</span>
+                            <span class="order-status ${order.order_status === 'COLLECTED' ? 'collected' : 'paid'}">
+                                ${order.order_status === 'COLLECTED' ? 'Collected' : 'Ready'}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="order-body">
+                        <div class="order-meta">
+                            <div class="meta-item">
+                                <span class="meta-label">Register Number</span>
+                                <span class="meta-value">${order.student_id}</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Student Name</span>
+                                <span class="meta-value">${order.student_name || '-'}</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Order Time</span>
+                                <span class="meta-value">${formatTime(order.created_at)}</span>
+                            </div>
+                            ${order.collected_at ? `
+                            <div class="meta-item">
+                                <span class="meta-label">Collected At</span>
+                                <span class="meta-value">${formatTime(order.collected_at)}</span>
+                            </div>
+                            ` : ''}
+                        </div>
+                        <div class="order-items-list">
+                            ${order.items.map(item => `
+                                <div class="order-item-row">
+                                    <span>${item.emoji}</span>
+                                    <span>${item.name}</span>
+                                    <span class="qty">×${item.quantity}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <div class="order-footer">
+                        <span class="order-total">₹${order.total_amount}</span>
+                        ${order.order_status === 'COLLECTED' ? `
+                            <span class="collected-badge">
+                                <span>✓</span>
+                                <span>Collected</span>
+                            </span>
+                        ` : `
+                            <button class="collect-btn" data-order-id="${order.id}">
+                                <span>✓</span>
+                                <span>Mark Collected</span>
+                            </button>
+                        `}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function formatTime(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const isToday = date.toDateString() === now.toDateString();
+
+            const timeOptions = {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            };
+
+            if (isToday) {
+                return 'Today ' + date.toLocaleTimeString('en-IN', timeOptions);
+            }
+
+            const dateOptions = {
+                day: '2-digit',
+                month: 'short',
+                ...timeOptions
+            };
+
+            return date.toLocaleDateString('en-IN', dateOptions);
+        }
+
+        // ============================================
+        // Event Listeners
+        // ============================================
+        // ============================================
+        // QR Scanner Logic
+        // ============================================
+        let html5QrcodeScanner = null;
+
+        function initializeScanner() {
+            const scannerModal = document.getElementById('scannerModal');
+            scannerModal.classList.add('active');
+
+            if (!html5QrcodeScanner) {
+                html5QrcodeScanner = new Html5Qrcode("reader");
+            }
+
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+            html5QrcodeScanner.start(
+                { facingMode: "environment" },
+                config,
+                onScanSuccess,
+                (errorMessage) => {
+                    // parse error, ignore 
+                }
+            ).catch(err => {
+                console.error("Error starting scanner", err);
+                alert("Failed to start camera. Please check permissions.");
+            });
+        }
+
+        async function onScanSuccess(decodedText, decodedResult) {
+            console.log(`Scan result: ${decodedText}`);
+
+            // Expected format: SATHYABAMA-CANTEEN|Order:ORDER_ID|Reg:REG...
+            // Or simple Order ID
+            let orderId = null;
+
+            if (decodedText.startsWith('SATHYABAMA-CANTEEN')) {
+                const parts = decodedText.split('|');
+                const orderPart = parts.find(p => p.startsWith('Order:'));
+                if (orderPart) {
+                    orderId = orderPart.split(':')[1];
+                }
+            } else {
+                // Try treating the whole text as ID if it's short
+                if (decodedText.length < 20) {
+                    orderId = decodedText;
+                }
+            }
+
+            if (orderId) {
+                // Stop scanning
+                stopScanner();
+
+                // Confirm and mark collected
+                if (confirm(`Order found: #${orderId}. Mark as collected?`)) {
+                    await markAsCollected(orderId.trim());
+                }
+            } else {
+                alert("Invalid QR Code format");
+            }
+        }
+
+        function stopScanner() {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.stop().then(() => {
+                    document.getElementById('scannerModal').classList.remove('active');
+                }).catch(err => console.error("Failed to stop scanner", err));
+            }
+        }
+
+        // ============================================
+        // Event Listeners (Updated)
+        // ============================================
+        function setupEventListeners() {
+            // Scan Button
+            document.getElementById('scanBtn').addEventListener('click', initializeScanner);
+
+            // Close Scanner Modal
+            document.getElementById('closeScannerModal').addEventListener('click', stopScanner);
+
+            // Refresh button
+            document.getElementById('refreshBtn').addEventListener('click', () => {
+                const btn = document.getElementById('refreshBtn');
+                btn.disabled = true;
+                btn.innerHTML = '<span>⏳</span><span>Loading...</span>';
+
+                fetchOrders().finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>🔄</span><span>Refresh</span>';
+                });
+            });
+
+            // Filter tabs
+            document.querySelector('.filter-tabs').addEventListener('click', (e) => {
+                if (e.target.classList.contains('filter-btn')) {
+                    document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+                    e.target.classList.add('active');
+                    currentFilter = e.target.dataset.filter;
+                    renderOrders();
+                }
+            });
+
+            // Collect button (event delegation)
+            document.getElementById('ordersList').addEventListener('click', async (e) => {
+                const collectBtn = e.target.closest('.collect-btn');
+                if (collectBtn) {
+                    const orderId = collectBtn.dataset.orderId;
+                    collectBtn.disabled = true;
+                    collectBtn.innerHTML = '<span>⏳</span><span>Processing...</span>';
+
+                    await markAsCollected(orderId);
+                }
+            });
+        }
+    </script>
+
+    <style>
+        .scanner-modal {
+            background: white;
+            border-radius: var(--radius-xl);
+            width: 100%;
+            max-width: 500px;
+            overflow: hidden;
+            box-shadow: var(--shadow-2xl);
+        }
+
+        .scanner-body {
+            padding: var(--space-md);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #reader {
+            width: 100%;
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .scanner-instruction {
+            margin-top: var(--space-md);
+            color: var(--gray-600);
+            font-size: 0.9rem;
+            text-align: center;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: var(--space-sm);
+        }
+
+        .scan-btn {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            padding: var(--space-sm) var(--space-md);
+            background: var(--gray-100);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            font-weight: 600;
+            color: var(--gray-800);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .scan-btn:hover {
+            background: var(--gray-200);
+        }
+    </style>
+</body>
+
+</html>

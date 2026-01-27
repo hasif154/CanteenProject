@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sathyabama Canteen - Online Food Ordering System">
+    <title>Sathyabama Canteen - Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="static/styles.css">
+</head>
+
+<body class="login-page">
+    <!-- Background with blur and overlay -->
+    <div class="login-background">
+        <div class="bg-image"></div>
+        <div class="bg-overlay"></div>
+    </div>
+
+    <div class="login-container">
+        <!-- Logo & Branding -->
+        <div class="brand-section">
+            <div class="logo-container">
+                <div class="logo-icon">
+                    <span class="logo-emoji">🍽️</span>
+                </div>
+                <h1 class="brand-name">Sathyabama Canteen</h1>
+                <p class="brand-tagline">Online Vending System</p>
+            </div>
+        </div>
+
+        <!-- Login Card -->
+        <div class="login-card glass-card">
+            <div class="card-header">
+                <h2>Student Login</h2>
+                <p>Enter your Register Number to continue</p>
+            </div>
+
+            <form id="loginForm" class="login-form">
+                <div class="input-group">
+                    <label for="registerNumber">Register Number</label>
+                    <div class="input-wrapper">
+                        <span class="input-icon">🎓</span>
+                        <input type="text" id="registerNumber" name="registerNumber" placeholder="e.g., 43613001"
+                            required autocomplete="off" minlength="5">
+                    </div>
+                </div>
+
+                <!-- Error Message -->
+                <div class="error-message" id="errorMessage">
+                    <span class="error-icon">⚠️</span>
+                    <span class="error-text">Login During You're Lunch Time</span>
+                </div>
+
+                <button type="submit" class="btn-primary btn-large" id="loginBtn">
+                    <span class="btn-text">Login</span>
+                    <span class="btn-icon">→</span>
+                </button>
+            </form>
+        </div>
+
+        <!-- Features Section -->
+        <div class="features-section">
+            <div class="feature-item">
+                <span class="feature-icon">⚡</span>
+                <span class="feature-text">Quick Order</span>
+            </div>
+            <div class="feature-item">
+                <span class="feature-icon">📱</span>
+                <span class="feature-text">Digital Receipt</span>
+            </div>
+            <div class="feature-item">
+                <span class="feature-icon">🎯</span>
+                <span class="feature-text">Skip Queue</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Allowed Registration Numbers: 43613001 to 43613046
+        // Generate student names for the range
+        function generateStudentDatabase() {
+            const students = {};
+
+            // First names pool
+            const firstNames = [
+                "Arun", "Priya", "Rahul", "Sneha", "Vijay", "Anitha", "Mohammed", "Kavitha",
+                "Rajesh", "Divya", "Karthik", "Meera", "Suresh", "Deepika", "Arjun", "Lakshmi",
+                "Sanjay", "Pooja", "Vikram", "Nithya", "Harish", "Swetha", "Ganesh", "Revathi",
+                "Prasad", "Keerthana", "Naveen", "Sangeetha", "Dinesh", "Bhavani", "Ramesh", "Saranya",
+                "Venkat", "Pavithra", "Kumar", "Janani", "Ashok", "Dharani", "Manoj", "Kiruthika",
+                "Praveen", "Nandhini", "Sathish", "Gayathri", "Balaji", "Thenmozhi"
+            ];
+
+            // Last names pool
+            const lastNames = [
+                "Kumar", "Sharma", "Prakash", "Reddy", "Krishna", "Devi", "Farhan", "Sundaram",
+                "Babu", "Lakshmi", "Raja", "Nair", "Gupta", "Venkat", "Menon", "Priya"
+            ];
+
+            // Generate 43613001 to 43613046
+            for (let i = 1; i <= 46; i++) {
+                const regNo = `43613${String(i).padStart(3, '0')}`;
+                const firstName = firstNames[i - 1] || firstNames[i % firstNames.length];
+                const lastName = lastNames[i % lastNames.length];
+                students[regNo] = `${firstName} ${lastName}`;
+            }
+
+            return students;
+        }
+
+        const STUDENTS_DATABASE = generateStudentDatabase();
+
+        // Log for debugging
+        console.log('Allowed Register Numbers:', Object.keys(STUDENTS_DATABASE));
+
+        // Check if already logged in
+        const storedRegNo = localStorage.getItem('registerNumber');
+        const storedName = localStorage.getItem('studentName');
+        if (storedRegNo && storedName) {
+            window.location.href = '/menu';
+        }
+
+        // Form submission handler
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const registerNumber = document.getElementById('registerNumber').value.trim().toUpperCase();
+            const errorMessage = document.getElementById('errorMessage');
+            const submitBtn = document.getElementById('loginBtn');
+
+            // Hide any previous error
+            errorMessage.classList.remove('show');
+
+            // Validate register number
+            if (registerNumber.length < 5) {
+                errorMessage.classList.add('show');
+                return;
+            }
+
+            // Check if register number exists in database (43613001 - 43613046)
+            const studentName = STUDENTS_DATABASE[registerNumber];
+
+            if (!studentName) {
+                // Show error message: "Login During You're Lunch Time"
+                errorMessage.classList.add('show');
+
+                // Shake animation
+                errorMessage.classList.add('shake');
+                setTimeout(() => errorMessage.classList.remove('shake'), 500);
+                return;
+            }
+
+            // Valid login - show loading state
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="btn-text">Logging in...</span><span class="btn-loader"></span>';
+
+            // Store in localStorage
+            localStorage.setItem('registerNumber', registerNumber);
+            localStorage.setItem('studentName', studentName);
+
+            // Also call backend (optional, for session tracking)
+            try {
+                await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        student_id: registerNumber,
+                        student_name: studentName
+                    })
+                });
+            } catch (error) {
+                console.log('Backend login optional');
+            }
+
+            // Small delay for UX, then redirect
+            setTimeout(() => {
+                window.location.href = '/menu';
+            }, 500);
+        });
+
+        // Clear error on input
+        document.getElementById('registerNumber').addEventListener('input', () => {
+            document.getElementById('errorMessage').classList.remove('show');
+        });
+    </script>
+</body>
+
+</html>
