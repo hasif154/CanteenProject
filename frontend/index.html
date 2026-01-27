@@ -48,6 +48,13 @@
                             required autocomplete="off" minlength="5">
                     </div>
                 </div>
+                <div class="input-group" style="margin-top: 15px;">
+                    <label for="password">Password</label>
+                    <div class="input-wrapper">
+                        <span class="input-icon">🔒</span>
+                        <input type="password" id="password" name="password" placeholder="••••" required>
+                    </div>
+                </div>
 
                 <!-- Error Message -->
                 <div class="error-message" id="errorMessage">
@@ -80,43 +87,6 @@
     </div>
 
     <script>
-        // Allowed Registration Numbers: 43613001 to 43613046
-        // Generate student names for the range
-        function generateStudentDatabase() {
-            const students = {};
-
-            // First names pool
-            const firstNames = [
-                "Arun", "Priya", "Rahul", "Sneha", "Vijay", "Anitha", "Mohammed", "Kavitha",
-                "Rajesh", "Divya", "Karthik", "Meera", "Suresh", "Deepika", "Arjun", "Lakshmi",
-                "Sanjay", "Pooja", "Vikram", "Nithya", "Harish", "Swetha", "Ganesh", "Revathi",
-                "Prasad", "Keerthana", "Naveen", "Sangeetha", "Dinesh", "Bhavani", "Ramesh", "Saranya",
-                "Venkat", "Pavithra", "Kumar", "Janani", "Ashok", "Dharani", "Manoj", "Kiruthika",
-                "Praveen", "Nandhini", "Sathish", "Gayathri", "Balaji", "Thenmozhi"
-            ];
-
-            // Last names pool
-            const lastNames = [
-                "Kumar", "Sharma", "Prakash", "Reddy", "Krishna", "Devi", "Farhan", "Sundaram",
-                "Babu", "Lakshmi", "Raja", "Nair", "Gupta", "Venkat", "Menon", "Priya"
-            ];
-
-            // Generate 43613001 to 43613046
-            for (let i = 1; i <= 46; i++) {
-                const regNo = `43613${String(i).padStart(3, '0')}`;
-                const firstName = firstNames[i - 1] || firstNames[i % firstNames.length];
-                const lastName = lastNames[i % lastNames.length];
-                students[regNo] = `${firstName} ${lastName}`;
-            }
-
-            return students;
-        }
-
-        const STUDENTS_DATABASE = generateStudentDatabase();
-
-        // Log for debugging
-        console.log('Allowed Register Numbers:', Object.keys(STUDENTS_DATABASE));
-
         // Check if already logged in
         const storedRegNo = localStorage.getItem('registerNumber');
         const storedName = localStorage.getItem('studentName');
@@ -129,57 +99,58 @@
             e.preventDefault();
 
             const registerNumber = document.getElementById('registerNumber').value.trim().toUpperCase();
+            const password = document.getElementById('password').value;
             const errorMessage = document.getElementById('errorMessage');
+            const errorText = errorMessage.querySelector('.error-text');
             const submitBtn = document.getElementById('loginBtn');
 
             // Hide any previous error
             errorMessage.classList.remove('show');
 
-            // Validate register number
-            if (registerNumber.length < 5) {
-                errorMessage.classList.add('show');
-                return;
-            }
-
-            // Check if register number exists in database (43613001 - 43613046)
-            const studentName = STUDENTS_DATABASE[registerNumber];
-
-            if (!studentName) {
-                // Show error message: "Login During You're Lunch Time"
-                errorMessage.classList.add('show');
-
-                // Shake animation
-                errorMessage.classList.add('shake');
-                setTimeout(() => errorMessage.classList.remove('shake'), 500);
-                return;
-            }
-
-            // Valid login - show loading state
+            // Show loading state
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="btn-text">Logging in...</span><span class="btn-loader"></span>';
 
-            // Store in localStorage
-            localStorage.setItem('registerNumber', registerNumber);
-            localStorage.setItem('studentName', studentName);
-
-            // Also call backend (optional, for session tracking)
             try {
-                await fetch('/api/login', {
+                const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        student_id: registerNumber,
-                        student_name: studentName
+                        registerNumber: registerNumber,
+                        password: password
                     })
                 });
-            } catch (error) {
-                console.log('Backend login optional');
-            }
 
-            // Small delay for UX, then redirect
-            setTimeout(() => {
-                window.location.href = '/menu';
-            }, 500);
+                const data = await response.json();
+
+                if (data.success) {
+                    // Store in localStorage
+                    localStorage.setItem('registerNumber', data.registerNumber);
+                    localStorage.setItem('studentName', data.name);
+
+                    // Redirect
+                    window.location.href = '/menu';
+                } else {
+                    // Show error from backend
+                    errorText.textContent = data.message || "Login During You're Lunch Time";
+                    errorMessage.classList.add('show');
+
+                    // Shake animation
+                    errorMessage.classList.add('shake');
+                    setTimeout(() => errorMessage.classList.remove('shake'), 500);
+
+                    // Reset button
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<span class="btn-text">Login</span><span class="btn-icon">→</span>';
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                errorText.textContent = "Connection failed. Please try again.";
+                errorMessage.classList.add('show');
+
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<span class="btn-text">Login</span><span class="btn-icon">→</span>';
+            }
         });
 
         // Clear error on input

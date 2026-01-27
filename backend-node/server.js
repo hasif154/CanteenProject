@@ -9,6 +9,8 @@ const cors = require('cors');
 const path = require('path');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
+const bcrypt = require('bcrypt');
+const supabase = require('./supabaseClient');
 
 const app = express();
 const PORT = 8080;
@@ -96,23 +98,65 @@ app.get('/admin', (req, res) => {
 // API Routes
 // ============================================
 
-// Login - Simple validation (actual validation done on frontend)
-app.post('/api/login', (req, res) => {
-    const { student_id, student_name } = req.body;
+// Login - Supabase Authentication
+app.post('/api/login', async (req, res) => {
+    const { registerNumber, password } = req.body;
 
-    if (!student_id) {
+    if (!registerNumber || !password) {
         return res.status(400).json({
             success: false,
-            error: 'Register Number is required'
+            message: 'Register Number and Password are required'
         });
     }
 
-    res.json({
-        success: true,
-        message: 'Login successful',
-        student_id: student_id,
-        student_name: student_name || 'Student'
-    });
+    try {
+        // 1. Fetch student from Supabase
+        const { data: student, error } = await supabase
+            .from('students')
+            .select('*')
+            .eq('register_number', registerNumber)
+            .single();
+
+        if (error || !student) {
+            // Student does not exist
+            return res.status(401).json({
+                success: false,
+                message: "Canteen can be accessed during your lunch break"
+            });
+        }
+
+        // 2. Check Password
+        const passwordMatch = await bcrypt.compare(password, student.password_hash);
+        if (!passwordMatch) {
+            return res.status(401).json({
+                success: false,
+                message: "Canteen can be accessed during your lunch break"
+            });
+        }
+
+        // 3. Check Canteen Access
+        if (student.canteen_access !== true) {
+            return res.status(403).json({
+                success: false,
+                message: "Canteen can be accessed during your lunch break"
+            });
+        }
+
+        // Success
+        console.log(`✅ Login Success: ${student.name} (${registerNumber})`);
+        res.json({
+            success: true,
+            registerNumber: student.register_number,
+            name: student.name
+        });
+
+    } catch (err) {
+        console.error('Login Error:', err);
+        res.status(500).json({
+            success: false,
+            message: "Internal Server Error"
+        });
+    }
 });
 
 // Get Menu
