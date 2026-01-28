@@ -7,10 +7,28 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcrypt');
 const supabase = require('./supabaseClient');
+
+// ============================================
+// Menu Data - Load from JSON file
+// ============================================
+function loadMenu() {
+    try {
+        const menuPath = path.join(__dirname, 'menu.json');
+        const menuData = JSON.parse(fs.readFileSync(menuPath, 'utf8'));
+        console.log(`📋 Menu loaded: ${menuData.items.length} items (v${menuData.menuVersion})`);
+        return menuData.items;
+    } catch (error) {
+        console.error('❌ Failed to load menu.json:', error.message);
+        return [];
+    }
+}
+
+let menuItems = loadMenu();
 
 const app = express();
 const PORT = 8080;
@@ -26,37 +44,6 @@ app.use(express.json());
 // Serve static files (frontend)
 app.use('/static', express.static(path.join(__dirname, '../frontend')));
 
-// ============================================
-// Menu Data - Indian Canteen Items
-// ============================================
-const menuItems = [
-    // 🥟 Snacks
-    { id: "samosa", name: "Samosa (Aloo)", price: 15, category: "Snacks", emoji: "🥟", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Samosa-Indian.jpg/1280px-Samosa-Indian.jpg" },
-    { id: "veg-puff", name: "Veg Puff", price: 20, category: "Snacks", emoji: "🥐", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Veg_puff.jpg/1280px-Veg_puff.jpg" },
-    { id: "bread-pakora", name: "Bread Pakora", price: 20, category: "Snacks", emoji: "🍞", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c9/Bread_Pakora.jpg/1280px-Bread_Pakora.jpg" },
-    { id: "onion-pakoda", name: "Onion Pakoda", price: 25, category: "Snacks", emoji: "🧅", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Onion_Bhaji.jpg/1280px-Onion_Bhaji.jpg" },
-    { id: "vada-pav", name: "Vada Pav", price: 20, category: "Snacks", emoji: "🍔", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/Vada_Pav_Indian_Burger.jpg/1280px-Vada_Pav_Indian_Burger.jpg" },
-    { id: "pav-bhaji", name: "Pav Bhaji", price: 40, category: "Snacks", emoji: "🍛", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Pav_bhaji.jpg/1280px-Pav_bhaji.jpg" },
-    { id: "aloo-tikki", name: "Aloo Tikki", price: 20, category: "Snacks", emoji: "🥔", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Aloo_tikki.JPG/1280px-Aloo_tikki.JPG" },
-    { id: "veg-cutlet", name: "Veg Cutlet", price: 25, category: "Snacks", emoji: "🍘", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Vegetable_cutlet.jpg/1280px-Vegetable_cutlet.jpg" },
-    { id: "dal-kachori", name: "Dal Kachori", price: 20, category: "Snacks", emoji: "🥟", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/Kachori.jpg/1280px-Kachori.jpg" },
-    { id: "spring-roll", name: "Veg Spring Roll", price: 30, category: "Snacks", emoji: "🌯", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Springrolls.jpg/1280px-Springrolls.jpg" },
-
-    // 🍽️ Quick Meals
-    { id: "plain-maggi", name: "Plain Maggi", price: 25, category: "Quick Meals", emoji: "🍜", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Maggi_instant_noodles.jpg/1280px-Maggi_instant_noodles.jpg" },
-    { id: "masala-maggi", name: "Masala Maggi", price: 30, category: "Quick Meals", emoji: "🍜", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Maggi_Goreng.jpg/1280px-Maggi_Goreng.jpg" },
-    { id: "cheese-maggi", name: "Cheese Maggi", price: 40, category: "Quick Meals", emoji: "🧀", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5d/Ramen_at_Megumi.jpg/1280px-Ramen_at_Megumi.jpg" },
-    { id: "poha", name: "Poha", price: 25, category: "Quick Meals", emoji: "🍚", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Poha_dish.jpg/1280px-Poha_dish.jpg" },
-    { id: "upma", name: "Upma", price: 25, category: "Quick Meals", emoji: "🍲", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Upma-Homemade.jpg/1280px-Upma-Homemade.jpg" },
-
-    // 🥤 Beverages
-    { id: "lemon-juice", name: "Lemon Juice", price: 20, category: "Beverages", emoji: "🍋", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Lemon_juice.jpg/1024px-Lemon_juice.jpg" },
-    { id: "lime-soda", name: "Fresh Lime Soda", price: 25, category: "Beverages", emoji: "🥤", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Mojito_without_alcohol.jpg/1280px-Mojito_without_alcohol.jpg" },
-    { id: "watermelon-juice", name: "Watermelon Juice", price: 30, category: "Beverages", emoji: "🍉", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Watermelon_juice.jpg/1280px-Watermelon_juice.jpg" },
-    { id: "mango-juice", name: "Mango Juice (Seasonal)", price: 35, category: "Beverages", emoji: "🥭", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/50/Mango_juice.jpg/1280px-Mango_juice.jpg" },
-    { id: "tea", name: "Tea", price: 15, category: "Beverages", emoji: "🍵", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/Cup_of_black_tea.JPG/1280px-Cup_of_black_tea.JPG" },
-    { id: "coffee", name: "Coffee", price: 20, category: "Beverages", emoji: "☕", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/A_small_cup_of_coffee.JPG/1280px-A_small_cup_of_coffee.JPG" },
-];
 
 // ============================================
 // In-Memory Storage
