@@ -1,97 +1,226 @@
 {
-    "menuVersion": "1.0.0",
-    "lastUpdated": "2026-01-28",
-    "items": [
-        {
-            "id": "kothu-parota",
-            "name": "Kothu Parota",
-            "price": 60,
-            "category": "Main Course",
-            "emoji": "🍛"
+    "canteens": {
+        "advanced-canteen": {
+            "name": "Advanced Canteen",
+            "menuVersion": "1.0.0",
+            "lastUpdated": "2026-02-10",
+            "items": [
+                {
+                    "id": "kothu-parota",
+                    "name": "Kothu Parota",
+                    "price": 60,
+                    "category": "Main Course",
+                    "emoji": "🍛",
+                    "available": true
+                },
+                {
+                    "id": "chapati",
+                    "name": "Chapati",
+                    "price": 15,
+                    "category": "Main Course",
+                    "emoji": "🫓",
+                    "available": true
+                },
+                {
+                    "id": "biryani",
+                    "name": "Biryani",
+                    "price": 80,
+                    "category": "Main Course",
+                    "emoji": "🍚",
+                    "available": false
+                },
+                {
+                    "id": "fried-rice",
+                    "name": "Fried Rice",
+                    "price": 50,
+                    "category": "Main Course",
+                    "emoji": "🍚",
+                    "available": true
+                },
+                {
+                    "id": "noodles",
+                    "name": "Noodles",
+                    "price": 45,
+                    "category": "Main Course",
+                    "emoji": "🍜",
+                    "available": true
+                },
+                {
+                    "id": "sandwich",
+                    "name": "Sandwich",
+                    "price": 35,
+                    "category": "Snacks",
+                    "emoji": "🥪",
+                    "available": true
+                },
+                {
+                    "id": "burger",
+                    "name": "Burger",
+                    "price": 50,
+                    "category": "Snacks",
+                    "emoji": "🍔",
+                    "available": true
+                },
+                {
+                    "id": "wrap",
+                    "name": "Wrap",
+                    "price": 45,
+                    "category": "Snacks",
+                    "emoji": "🌯",
+                    "available": true
+                },
+                {
+                    "id": "panipoori",
+                    "name": "Panipoori",
+                    "price": 30,
+                    "category": "Chaat",
+                    "emoji": "🥟",
+                    "available": true
+                },
+                {
+                    "id": "samosa",
+                    "name": "Samosa",
+                    "price": 15,
+                    "category": "Snacks",
+                    "emoji": "🥟",
+                    "available": true
+                },
+                {
+                    "id": "chat",
+                    "name": "Chat",
+                    "price": 35,
+                    "category": "Chaat",
+                    "emoji": "🍲",
+                    "available": true
+                },
+                {
+                    "id": "pizza",
+                    "name": "Pizza",
+                    "price": 80,
+                    "category": "Snacks",
+                    "emoji": "🍕",
+                    "available": true
+                },
+                {
+                    "id": "softy",
+                    "name": "Softy",
+                    "price": 25,
+                    "category": "Desserts",
+                    "emoji": "🍦",
+                    "available": true
+                }
+            ]
         },
-        {
-            "id": "chapati",
-            "name": "Chapati",
-            "price": 15,
-            "category": "Main Course",
-            "emoji": "🫓"
-        },
-        {
-            "id": "biryani",
-            "name": "Biryani",
-            "price": 80,
-            "category": "Main Course",
-            "emoji": "🍚"
-        },
-        {
-            "id": "fried-rice",
-            "name": "Fried Rice",
-            "price": 50,
-            "category": "Main Course",
-            "emoji": "🍚"
-        },
-        {
-            "id": "noodles",
-            "name": "Noodles",
-            "price": 45,
-            "category": "Main Course",
-            "emoji": "🍜"
-        },
-        {
-            "id": "sandwich",
-            "name": "Sandwich",
-            "price": 35,
-            "category": "Snacks",
-            "emoji": "🥪"
-        },
-        {
-            "id": "burger",
-            "name": "Burger",
-            "price": 50,
-            "category": "Snacks",
-            "emoji": "🍔"
-        },
-        {
-            "id": "wrap",
-            "name": "Wrap",
-            "price": 45,
-            "category": "Snacks",
-            "emoji": "🌯"
-        },
-        {
-            "id": "panipoori",
-            "name": "Panipoori",
-            "price": 30,
-            "category": "Chaat",
-            "emoji": "🥟"
-        },
-        {
-            "id": "samosa",
-            "name": "Samosa",
-            "price": 15,
-            "category": "Snacks",
-            "emoji": "🥟"
-        },
-        {
-            "id": "chat",
-            "name": "Chat",
-            "price": 35,
-            "category": "Chaat",
-            "emoji": "🍲"
-        },
-        {
-            "id": "pizza",
-            "name": "Pizza",
-            "price": 80,
-            "category": "Snacks",
-            "emoji": "🍕"
-        },
-        {
-            "id": "softy",
-            "name": "Softy",
-            "price": 25,
-            "category": "Desserts",
-            "emoji": "🍦"
+        "main-canteen": {
+            "name": "Main Canteen",
+            "menuVersion": "1.0.0",
+            "lastUpdated": "2026-02-10",
+            "items": [
+                {
+                    "id": "kothu-parota",
+                    "name": "Kothu Parota",
+                    "price": 60,
+                    "category": "Main Course",
+                    "emoji": "🍛",
+                    "available": true
+                },
+                {
+                    "id": "chapati",
+                    "name": "Chapati",
+                    "price": 15,
+                    "category": "Main Course",
+                    "emoji": "🫓",
+                    "available": true
+                },
+                {
+                    "id": "biryani",
+                    "name": "Biryani",
+                    "price": 80,
+                    "category": "Main Course",
+                    "emoji": "🍚",
+                    "available": true
+                },
+                {
+                    "id": "fried-rice",
+                    "name": "Fried Rice",
+                    "price": 50,
+                    "category": "Main Course",
+                    "emoji": "🍚",
+                    "available": true
+                },
+                {
+                    "id": "noodles",
+                    "name": "Noodles",
+                    "price": 45,
+                    "category": "Main Course",
+                    "emoji": "🍜",
+                    "available": true
+                },
+                {
+                    "id": "sandwich",
+                    "name": "Sandwich",
+                    "price": 35,
+                    "category": "Snacks",
+                    "emoji": "🥪",
+                    "available": true
+                },
+                {
+                    "id": "burger",
+                    "name": "Burger",
+                    "price": 50,
+                    "category": "Snacks",
+                    "emoji": "🍔",
+                    "available": true
+                },
+                {
+                    "id": "wrap",
+                    "name": "Wrap",
+                    "price": 45,
+                    "category": "Snacks",
+                    "emoji": "🌯",
+                    "available": true
+                },
+                {
+                    "id": "panipoori",
+                    "name": "Panipoori",
+                    "price": 30,
+                    "category": "Chaat",
+                    "emoji": "🥟",
+                    "available": true
+                },
+                {
+                    "id": "samosa",
+                    "name": "Samosa",
+                    "price": 15,
+                    "category": "Snacks",
+                    "emoji": "🥟",
+                    "available": true
+                },
+                {
+                    "id": "chat",
+                    "name": "Chat",
+                    "price": 35,
+                    "category": "Chaat",
+                    "emoji": "🍲",
+                    "available": true
+                },
+                {
+                    "id": "pizza",
+                    "name": "Pizza",
+                    "price": 80,
+                    "category": "Snacks",
+                    "emoji": "🍕",
+                    "available": true
+                },
+                {
+                    "id": "softy",
+                    "name": "Softy",
+                    "price": 25,
+                    "category": "Desserts",
+                    "emoji": "🍦",
+                    "available": true
+                }
+            ]
         }
-    ]
+    }
 }

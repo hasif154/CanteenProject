@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Admin Login - Sathyabama Canteen Management">
+    <title>Admin Login - Sathyabama Canteen</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="static/styles.css">
+</head>
+
+<body class="login-page">
+    <!-- Background with blur and overlay -->
+    <div class="login-background">
+        <div class="bg-image"></div>
+        <div class="bg-overlay" style="background: linear-gradient(135deg,
+                rgba(10, 10, 30, 0.92) 0%,
+                rgba(30, 20, 50, 0.90) 50%,
+                rgba(50, 30, 60, 0.88) 100%);"></div>
+    </div>
+
+    <div class="login-container">
+        <!-- Logo & Branding -->
+        <div class="brand-section">
+            <div class="logo-container">
+                <div class="logo-icon" style="background: linear-gradient(135deg, #f97316, #ea580c);">
+                    <span class="logo-emoji">🔐</span>
+                </div>
+                <h1 class="brand-name">Admin Portal</h1>
+                <p class="brand-tagline">Sathyabama Canteen Management</p>
+            </div>
+        </div>
+
+        <!-- Login Card -->
+        <div class="login-card glass-card">
+            <div class="card-header">
+                <h2>Admin Login</h2>
+                <p>Enter your credentials to manage the canteen</p>
+            </div>
+
+            <form id="adminLoginForm" class="login-form">
+                <div class="input-group">
+                    <label for="username">Username</label>
+                    <div class="input-wrapper">
+                        <span class="input-icon">👤</span>
+                        <input type="text" id="username" name="username" placeholder="Enter username" required
+                            autocomplete="off">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="password">Password</label>
+                    <div class="input-wrapper">
+                        <span class="input-icon">🔒</span>
+                        <input type="password" id="password" name="password" placeholder="••••" required>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="canteenSelect">Select Canteen</label>
+                    <div class="input-wrapper">
+                        <span class="input-icon">🏪</span>
+                        <select id="canteenSelect" name="canteenSelect" required
+                            style="width:100%; padding: 1rem 1rem 1rem 3rem; font-size:1rem; font-family:inherit; border:2px solid var(--gray-200); border-radius:var(--radius-lg); background:var(--gray-50); color:var(--gray-900); appearance:none; cursor:pointer;">
+                            <option value="" disabled selected>Loading canteens...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Error Message -->
+                <div class="error-message" id="errorMessage">
+                    <span class="error-icon">⚠️</span>
+                    <span class="error-text">Invalid credentials</span>
+                </div>
+
+                <!-- Rate Limit Warning -->
+                <div class="error-message" id="rateLimitMsg"
+                    style="background: var(--warning-light); border-color: var(--warning); color: #92400e;">
+                    <span class="error-icon">⚡</span>
+                    <span class="error-text">Another admin session will be replaced</span>
+                </div>
+
+                <button type="submit" class="btn-primary btn-large" id="loginBtn"
+                    style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);">
+                    <span class="btn-text">Login to Dashboard</span>
+                    <span class="btn-icon">→</span>
+                </button>
+            </form>
+        </div>
+
+        <!-- Back Link -->
+        <div style="text-align:center;">
+            <a href="/" style="color:rgba(255,255,255,0.7); text-decoration:none; font-size:0.875rem; font-weight:500;">
+                ← Back to Student Login
+            </a>
+        </div>
+    </div>
+
+    <script>
+        // Load canteen list
+        async function loadCanteens() {
+            try {
+                const response = await fetch('/api/canteens');
+                const data = await response.json();
+
+                if (data.success) {
+                    const select = document.getElementById('canteenSelect');
+                    select.innerHTML = '<option value="" disabled selected>Choose a canteen...</option>';
+                    data.canteens.forEach(canteen => {
+                        const option = document.createElement('option');
+                        option.value = canteen.id;
+                        option.textContent = canteen.name;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to load canteens:', error);
+            }
+        }
+
+        // Check if already logged in
+        const storedToken = localStorage.getItem('adminToken');
+        const storedCanteen = localStorage.getItem('adminCanteenId');
+        if (storedToken && storedCanteen) {
+            // Verify session is still valid
+            fetch('/api/admin/check-session', {
+                headers: { 'X-Admin-Token': storedToken }
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    window.location.href = '/admin?canteen=' + storedCanteen;
+                } else {
+                    localStorage.removeItem('adminToken');
+                    localStorage.removeItem('adminCanteenId');
+                    localStorage.removeItem('adminCanteenName');
+                }
+            }).catch(() => { });
+        }
+
+        loadCanteens();
+
+        // Form submission
+        document.getElementById('adminLoginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const canteenId = document.getElementById('canteenSelect').value;
+            const errorMessage = document.getElementById('errorMessage');
+            const errorText = errorMessage.querySelector('.error-text');
+            const submitBtn = document.getElementById('loginBtn');
+
+            errorMessage.classList.remove('show');
+            document.getElementById('rateLimitMsg').classList.remove('show');
+
+            if (!canteenId) {
+                errorText.textContent = 'Please select a canteen';
+                errorMessage.classList.add('show');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="btn-text">Authenticating...</span><span class="btn-loader"></span>';
+
+            try {
+                const response = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, canteenId })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    localStorage.setItem('adminToken', data.token);
+                    localStorage.setItem('adminCanteenId', data.canteenId);
+                    localStorage.setItem('adminCanteenName', data.canteenName);
+                    window.location.href = '/admin?canteen=' + data.canteenId;
+                } else {
+                    errorText.textContent = data.message || 'Invalid credentials';
+                    errorMessage.classList.add('show');
+                    errorMessage.classList.add('shake');
+                    setTimeout(() => errorMessage.classList.remove('shake'), 500);
+
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<span class="btn-text">Login to Dashboard</span><span class="btn-icon">→</span>';
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                errorText.textContent = 'Connection failed. Please try again.';
+                errorMessage.classList.add('show');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<span class="btn-text">Login to Dashboard</span><span class="btn-icon">→</span>';
+            }
+        });
+    </script>
+</body>
+
+</html>

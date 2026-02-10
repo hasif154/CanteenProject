@@ -11,7 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="static/styles.css">
-    <!-- QR Code Library - Using a more reliable CDN -->
+    <!-- QR Code Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 
@@ -26,7 +26,7 @@
         <!-- Receipt Card -->
         <div class="receipt-card" id="receiptCard">
             <div class="receipt-header">
-                <h2>🍽️ Sathyabama Canteen</h2>
+                <h2 id="receiptCanteenName">🍽️ Sathyabama Canteen</h2>
                 <div class="order-id" id="orderIdDisplay">Loading...</div>
             </div>
 
@@ -42,10 +42,14 @@
                         <div class="info-value" id="studentNameDisplay">-</div>
                     </div>
                     <div class="info-item">
+                        <div class="info-label">Canteen</div>
+                        <div class="info-value" id="canteenDisplay">-</div>
+                    </div>
+                    <div class="info-item">
                         <div class="info-label">Date & Time</div>
                         <div class="info-value" id="timestampDisplay">-</div>
                     </div>
-                    <div class="info-item">
+                    <div class="info-item full-width">
                         <div class="info-label">Status</div>
                         <div class="info-value">
                             <span class="status-badge" id="orderStatus">
@@ -84,6 +88,10 @@
                     <span>🍽️</span>
                     <span>Order More</span>
                 </button>
+                <button class="btn-secondary" id="changeCanteenBtn">
+                    <span>🏪</span>
+                    <span>Change Canteen</span>
+                </button>
                 <button class="btn-secondary" id="logoutBtn">
                     <span>🚪</span>
                     <span>Logout</span>
@@ -97,7 +105,6 @@
         // Initialization
         // ============================================
         document.addEventListener('DOMContentLoaded', async () => {
-            // Get student info from localStorage
             const registerNumber = localStorage.getItem('registerNumber');
             const studentName = localStorage.getItem('studentName');
 
@@ -110,46 +117,45 @@
             // Get order ID from URL or localStorage
             const urlParams = new URLSearchParams(window.location.search);
             let orderId = urlParams.get('order_id') || localStorage.getItem('lastOrderId');
+            const canteenId = localStorage.getItem('lastCanteenId');
+            const canteenName = localStorage.getItem('lastCanteenName');
 
-            // Try to get order from localStorage first (for immediate display)
+            // Try to get order from localStorage first
             const storedOrder = localStorage.getItem('lastOrder');
 
             if (storedOrder) {
                 const order = JSON.parse(storedOrder);
-                renderReceipt(order, registerNumber, studentName);
+                renderReceipt(order, registerNumber, studentName, canteenName);
             } else if (orderId) {
-                // Fetch from server
-                await fetchOrderDetails(orderId, registerNumber, studentName);
+                await fetchOrderDetails(orderId, registerNumber, studentName, canteenName);
             } else {
                 alert('No order found. Redirecting to menu...');
-                window.location.href = '/menu';
+                window.location.href = '/select-canteen';
                 return;
             }
 
-            // Set up event listeners
-            setupEventListeners();
+            setupEventListeners(canteenId);
         });
 
         // ============================================
         // API Functions
         // ============================================
-        async function fetchOrderDetails(orderId, registerNumber, studentName) {
+        async function fetchOrderDetails(orderId, registerNumber, studentName, canteenName) {
             try {
                 const response = await fetch(`/api/order/${orderId}`);
                 const data = await response.json();
 
                 if (data.success) {
-                    renderReceipt(data.order, registerNumber, studentName);
+                    renderReceipt(data.order, registerNumber, studentName, canteenName);
                 } else {
                     alert('Failed to load order details');
-                    window.location.href = '/menu';
+                    window.location.href = '/select-canteen';
                 }
             } catch (error) {
                 console.error('Error fetching order:', error);
-                // Use stored data if available
                 const storedOrder = localStorage.getItem('lastOrder');
                 if (storedOrder) {
-                    renderReceipt(JSON.parse(storedOrder), registerNumber, studentName);
+                    renderReceipt(JSON.parse(storedOrder), registerNumber, studentName, canteenName);
                 } else {
                     alert('Connection error. Please try again.');
                 }
@@ -159,7 +165,12 @@
         // ============================================
         // Rendering
         // ============================================
-        function renderReceipt(order, registerNumber, studentName) {
+        function renderReceipt(order, registerNumber, studentName, canteenName) {
+            // Canteen name
+            const displayCanteenName = canteenName || order.canteen_name || 'Sathyabama Canteen';
+            document.getElementById('receiptCanteenName').textContent = '🍽️ ' + displayCanteenName;
+            document.getElementById('canteenDisplay').textContent = displayCanteenName;
+
             // Order ID
             document.getElementById('orderIdDisplay').textContent = '#' + order.id.toUpperCase();
 
@@ -191,30 +202,20 @@
         }
 
         function formatDateTime(date) {
-            const options = {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true
-            };
-            return date.toLocaleDateString('en-IN', options);
+            return date.toLocaleDateString('en-IN', {
+                day: '2-digit', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', hour12: true
+            });
         }
 
         function generateQRCode(orderId, registerNumber, studentName, total) {
             const qrContainer = document.getElementById('qrCode');
-
-            // Clear any existing content
             qrContainer.innerHTML = '';
 
-            // QR content - simple string format
             const qrContent = `SATHYABAMA-CANTEEN|Order:${orderId.toUpperCase()}|Reg:${registerNumber}|Name:${studentName}|Total:Rs.${total}`;
 
             try {
-                // Check if QRCode library is available
                 if (typeof QRCode !== 'undefined') {
-                    // Create QR code using qrcodejs library
                     new QRCode(qrContainer, {
                         text: qrContent,
                         width: 140,
@@ -223,9 +224,7 @@
                         colorLight: "#ffffff",
                         correctLevel: QRCode.CorrectLevel.M
                     });
-                    console.log('QR Code generated successfully');
                 } else {
-                    // Fallback: Create a visual placeholder with order details
                     createQRFallback(qrContainer, orderId);
                 }
             } catch (error) {
@@ -235,21 +234,8 @@
         }
 
         function createQRFallback(container, orderId) {
-            // Fallback visual QR-like pattern
             container.innerHTML = `
-                <div style="
-                    width: 140px;
-                    height: 140px;
-                    background: white;
-                    border: 3px solid #1e3a8a;
-                    border-radius: 12px;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    gap: 8px;
-                    padding: 15px;
-                ">
+                <div style="width:140px;height:140px;background:white;border:3px solid #1e3a8a;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:15px;">
                     <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#1e3a8a" stroke-width="2">
                         <rect x="3" y="3" width="7" height="7" rx="1"/>
                         <rect x="14" y="3" width="7" height="7" rx="1"/>
@@ -259,13 +245,7 @@
                         <rect x="14" y="18" width="3" height="3"/>
                         <rect x="18" y="18" width="3" height="3"/>
                     </svg>
-                    <div style="
-                        font-size: 11px;
-                        font-weight: 700;
-                        color: #1e3a8a;
-                        text-align: center;
-                        font-family: monospace;
-                    ">#${orderId.toUpperCase()}</div>
+                    <div style="font-size:11px;font-weight:700;color:#1e3a8a;text-align:center;font-family:monospace;">#${orderId.toUpperCase()}</div>
                 </div>
             `;
         }
@@ -273,13 +253,23 @@
         // ============================================
         // Event Listeners
         // ============================================
-        function setupEventListeners() {
-            // New order button
+        function setupEventListeners(canteenId) {
+            // New order button - go back to same canteen
             document.getElementById('newOrderBtn').addEventListener('click', () => {
-                // Clear last order data
                 localStorage.removeItem('lastOrderId');
                 localStorage.removeItem('lastOrder');
-                window.location.href = '/menu';
+                if (canteenId) {
+                    window.location.href = '/menu?canteen=' + canteenId;
+                } else {
+                    window.location.href = '/select-canteen';
+                }
+            });
+
+            // Change canteen
+            document.getElementById('changeCanteenBtn').addEventListener('click', () => {
+                localStorage.removeItem('lastOrderId');
+                localStorage.removeItem('lastOrder');
+                window.location.href = '/select-canteen';
             });
 
             // Logout button

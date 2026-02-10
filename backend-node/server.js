@@ -1,6 +1,7 @@
 /**
  * Sathyabama Canteen - Node.js Backend Server
  * Online Vending System for College Students
+ * Features: Multi-canteen, Admin Auth, Menu Availability, Rate Limiting
  */
 
 require('dotenv').config();
@@ -13,23 +14,6 @@ const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcrypt');
 const supabase = require('./supabaseClient');
 
-// ============================================
-// Menu Data - Load from JSON file
-// ============================================
-function loadMenu() {
-    try {
-        const menuPath = path.join(__dirname, 'menu.json');
-        const menuData = JSON.parse(fs.readFileSync(menuPath, 'utf8'));
-        console.log(`📋 Menu loaded: ${menuData.items.length} items (v${menuData.menuVersion})`);
-        return menuData.items;
-    } catch (error) {
-        console.error('❌ Failed to load menu.json:', error.message);
-        return [];
-    }
-}
-
-let menuItems = loadMenu();
-
 const app = express();
 const PORT = 8080;
 
@@ -37,29 +21,146 @@ const PORT = 8080;
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 
+// ============================================
+// Admin Credentials (hardcoded as requested)
+// ============================================
+const ADMIN_USERNAME = 'admin';
+const ADMIN_PASSWORD = 'admin';
+
+// ============================================
+// Menu Data - Load from JSON file (Async)
+// ============================================
+const MENU_PATH = path.join(__dirname, 'menu.json');
+
+let canteenMenus = {}; // { 'advanced-canteen': { name, items }, 'main-canteen': { name, items } }
+
+async function loadMenu() {
+    try {
+        const menuData = JSON.parse(await fs.promises.readFile(MENU_PATH, 'utf8'));
+        canteenMenus = {};
+        for (const [canteenId, canteen] of Object.entries(menuData.canteens)) {
+            canteenMenus[canteenId] = {
+                name: canteen.name,
+                menuVersion: canteen.menuVersion,
+                lastUpdated: canteen.lastUpdated,
+                items: canteen.items
+            };
+            console.log(`📋 ${canteen.name}: ${canteen.items.length} items loaded`);
+        }
+        return true;
+    } catch (error) {
+        console.error('❌ Failed to load menu.json:', error.message);
+        return false;
+    }
+}
+
+async function saveMenu() {
+    try {
+        const menuData = { canteens: {} };
+        for (const [canteenId, canteen] of Object.entries(canteenMenus)) {
+            menuData.canteens[canteenId] = {
+                name: canteen.name,
+                menuVersion: canteen.menuVersion,
+                lastUpdated: new Date().toISOString().split('T')[0],
+                items: canteen.items
+            };
+        }
+        await fs.promises.writeFile(MENU_PATH, JSON.stringify(menuData, null, 4), 'utf8');
+        console.log('💾 Menu saved to disk');
+        return true;
+    } catch (error) {
+        console.error('❌ Failed to save menu.json:', error.message);
+        return false;
+    }
+}
+
+// Menu version tracker - increments on each change for live polling
+let menuVersionCounter = 0;
+
+// ============================================
+// Admin Session Management & Rate Limiting
+// One admin login at a time per canteen
+// ============================================
+const adminSessions = new Map(); // token -> { canteenId, loginTime }
+const canteenActiveAdmin = new Map(); // canteenId -> token
+
+function createAdminSession(canteenId) {
+    // Check if there's already an active admin for this canteen
+    const existingToken = canteenActiveAdmin.get(canteenId);
+    if (existingToken) {
+        // Invalidate previous session (force logout)
+        adminSessions.delete(existingToken);
+        console.log(`🔒 Previous admin session for ${canteenId} invalidated`);
+    }
+
+    const token = uuidv4();
+    adminSessions.set(token, {
+        canteenId,
+        loginTime: new Date().toISOString()
+    });
+    canteenActiveAdmin.set(canteenId, token);
+    console.log(`🔑 Admin session created for ${canteenId}`);
+    return token;
+}
+
+function validateAdminSession(token) {
+    return adminSessions.get(token) || null;
+}
+
+function destroyAdminSession(token) {
+    const session = adminSessions.get(token);
+    if (session) {
+        const activeToken = canteenActiveAdmin.get(session.canteenId);
+        if (activeToken === token) {
+            canteenActiveAdmin.delete(session.canteenId);
+        }
+        adminSessions.delete(token);
+        console.log(`🔓 Admin session destroyed for ${session.canteenId}`);
+    }
+}
+
+// Admin auth middleware
+function requireAdmin(req, res, next) {
+    const token = req.headers['x-admin-token'] || req.query.token;
+    if (!token) {
+        return res.status(401).json({ success: false, message: 'Admin authentication required' });
+    }
+    const session = validateAdminSession(token);
+    if (!session) {
+        return res.status(401).json({ success: false, message: 'Session expired. Please login again.' });
+    }
+    req.adminSession = session;
+    req.adminToken = token;
+    next();
+}
+
+// ============================================
+// In-Memory Order Storage (per canteen)
+// ============================================
+const orders = new Map(); // orderId -> order (includes canteen_id)
+
+// ============================================
 // Middleware
+// ============================================
 app.use(cors());
 app.use(express.json());
-
-// Serve static files (frontend)
 app.use('/static', express.static(path.join(__dirname, '../frontend')));
-
-
-// ============================================
-// In-Memory Storage
-// ============================================
-const orders = new Map();
 
 // ============================================
 // Helper Functions
 // ============================================
-function getMenuItemById(id) {
-    return menuItems.find(item => item.id === id);
+function getMenuItemById(canteenId, itemId) {
+    const canteen = canteenMenus[canteenId];
+    if (!canteen) return null;
+    return canteen.items.find(item => item.id === itemId);
 }
 
 function generateOrderId() {
-    // Generate a short, readable order ID
     return uuidv4().substring(0, 8);
+}
+
+function getValidCanteenIds() {
+    return Object.keys(canteenMenus);
 }
 
 // ============================================
@@ -67,6 +168,10 @@ function generateOrderId() {
 // ============================================
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/index.html'));
+});
+
+app.get('/select-canteen', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/canteen-select.html'));
 });
 
 app.get('/menu', (req, res) => {
@@ -77,15 +182,17 @@ app.get('/receipt', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/receipt.html'));
 });
 
+app.get('/admin-login', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/admin-login.html'));
+});
+
 app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/admin.html'));
 });
 
 // ============================================
-// API Routes
+// API: Student Authentication
 // ============================================
-
-// Login - Supabase Authentication
 app.post('/api/login', async (req, res) => {
     const { registerNumber, password } = req.body;
 
@@ -97,7 +204,6 @@ app.post('/api/login', async (req, res) => {
     }
 
     try {
-        // 1. Fetch student from Supabase
         const { data: student, error } = await supabase
             .from('students')
             .select('*')
@@ -105,14 +211,12 @@ app.post('/api/login', async (req, res) => {
             .single();
 
         if (error || !student) {
-            // Student does not exist
             return res.status(401).json({
                 success: false,
                 message: "Canteen can be accessed during your lunch break"
             });
         }
 
-        // 2. Check Password
         const passwordMatch = await bcrypt.compare(password, student.password_hash);
         if (!passwordMatch) {
             return res.status(401).json({
@@ -121,7 +225,6 @@ app.post('/api/login', async (req, res) => {
             });
         }
 
-        // 3. Check Canteen Access
         if (student.canteen_access !== true) {
             return res.status(403).json({
                 success: false,
@@ -129,7 +232,6 @@ app.post('/api/login', async (req, res) => {
             });
         }
 
-        // Success
         console.log(`✅ Login Success: ${student.name} (${registerNumber})`);
         res.json({
             success: true,
@@ -146,35 +248,223 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// Get Menu
-app.get('/api/menu', (req, res) => {
-    res.json({
-        success: true,
-        menu: menuItems
-    });
-});
+// ============================================
+// API: Admin Authentication
+// ============================================
+app.post('/api/admin/login', (req, res) => {
+    const { username, password, canteenId } = req.body;
 
-// Create Order
-app.post('/api/order/create', (req, res) => {
-    const { student_id, student_name, items } = req.body;
-
-    if (!student_id || !items || items.length === 0) {
+    if (!username || !password || !canteenId) {
         return res.status(400).json({
             success: false,
-            error: 'Invalid request: student_id and items are required'
+            message: 'Username, password, and canteen selection are required'
         });
     }
 
-    // Validate and build order items
+    if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
+        return res.status(401).json({
+            success: false,
+            message: 'Invalid credentials'
+        });
+    }
+
+    if (!canteenMenus[canteenId]) {
+        return res.status(400).json({
+            success: false,
+            message: 'Invalid canteen selected'
+        });
+    }
+
+    // Rate limiting: Check if there's already an active admin
+    const existingToken = canteenActiveAdmin.get(canteenId);
+    if (existingToken && adminSessions.has(existingToken)) {
+        console.log(`⚠️ Another admin already logged in to ${canteenId}. Replacing session.`);
+    }
+
+    const token = createAdminSession(canteenId);
+    const canteen = canteenMenus[canteenId];
+
+    res.json({
+        success: true,
+        token,
+        canteenId,
+        canteenName: canteen.name,
+        message: `Logged in to ${canteen.name} admin panel`
+    });
+});
+
+app.post('/api/admin/logout', requireAdmin, (req, res) => {
+    destroyAdminSession(req.adminToken);
+    res.json({ success: true, message: 'Logged out successfully' });
+});
+
+app.get('/api/admin/check-session', requireAdmin, (req, res) => {
+    const canteen = canteenMenus[req.adminSession.canteenId];
+    res.json({
+        success: true,
+        canteenId: req.adminSession.canteenId,
+        canteenName: canteen ? canteen.name : 'Unknown',
+        loginTime: req.adminSession.loginTime
+    });
+});
+
+// ============================================
+// API: Canteens List
+// ============================================
+app.get('/api/canteens', (req, res) => {
+    const canteens = Object.entries(canteenMenus).map(([id, data]) => ({
+        id,
+        name: data.name
+    }));
+    res.json({ success: true, canteens });
+});
+
+// ============================================
+// API: Menu (per canteen, async)
+// ============================================
+app.get('/api/menu/:canteenId', async (req, res) => {
+    const { canteenId } = req.params;
+    const canteen = canteenMenus[canteenId];
+
+    if (!canteen) {
+        return res.status(404).json({ success: false, error: 'Canteen not found' });
+    }
+
+    res.json({
+        success: true,
+        canteenId,
+        canteenName: canteen.name,
+        menu: canteen.items,
+        menuVersion: menuVersionCounter
+    });
+});
+
+// Menu version check (for live polling)
+app.get('/api/menu-version', (req, res) => {
+    res.json({ success: true, version: menuVersionCounter });
+});
+
+// ============================================
+// API: Admin Menu Management
+// ============================================
+app.post('/api/admin/menu/toggle', requireAdmin, async (req, res) => {
+    const { itemId, available } = req.body;
+    const canteenId = req.adminSession.canteenId;
+    const canteen = canteenMenus[canteenId];
+
+    if (!canteen) {
+        return res.status(404).json({ success: false, error: 'Canteen not found' });
+    }
+
+    const item = canteen.items.find(i => i.id === itemId);
+    if (!item) {
+        return res.status(404).json({ success: false, error: 'Menu item not found' });
+    }
+
+    item.available = available;
+    menuVersionCounter++;
+
+    // Persist to disk
+    await saveMenu();
+
+    console.log(`🔄 ${canteen.name}: "${item.name}" → ${available ? '✅ Available' : '❌ Not Available'}`);
+
+    res.json({
+        success: true,
+        item: { id: item.id, name: item.name, available: item.available },
+        menuVersion: menuVersionCounter,
+        message: `${item.name} is now ${available ? 'available' : 'not available'}`
+    });
+});
+
+// Bulk toggle
+app.post('/api/admin/menu/bulk-toggle', requireAdmin, async (req, res) => {
+    const { available } = req.body; // true = all available, false = all unavailable
+    const canteenId = req.adminSession.canteenId;
+    const canteen = canteenMenus[canteenId];
+
+    if (!canteen) {
+        return res.status(404).json({ success: false, error: 'Canteen not found' });
+    }
+
+    canteen.items.forEach(item => { item.available = available; });
+    menuVersionCounter++;
+
+    await saveMenu();
+
+    console.log(`🔄 ${canteen.name}: All items → ${available ? '✅ Available' : '❌ Not Available'}`);
+
+    res.json({
+        success: true,
+        menuVersion: menuVersionCounter,
+        message: `All items are now ${available ? 'available' : 'not available'}`
+    });
+});
+
+// Admin get menu (includes all items regardless of availability)
+app.get('/api/admin/menu', requireAdmin, (req, res) => {
+    const canteenId = req.adminSession.canteenId;
+    const canteen = canteenMenus[canteenId];
+
+    if (!canteen) {
+        return res.status(404).json({ success: false, error: 'Canteen not found' });
+    }
+
+    res.json({
+        success: true,
+        canteenId,
+        canteenName: canteen.name,
+        menu: canteen.items,
+        menuVersion: menuVersionCounter
+    });
+});
+
+// Force menu refresh from disk
+app.post('/api/admin/menu/refresh', requireAdmin, async (req, res) => {
+    const success = await loadMenu();
+    if (success) {
+        menuVersionCounter++;
+        res.json({ success: true, menuVersion: menuVersionCounter, message: 'Menu refreshed from disk' });
+    } else {
+        res.status(500).json({ success: false, error: 'Failed to reload menu' });
+    }
+});
+
+// ============================================
+// API: Orders (per canteen)
+// ============================================
+app.post('/api/order/create', (req, res) => {
+    const { student_id, student_name, items, canteen_id } = req.body;
+
+    if (!student_id || !items || items.length === 0 || !canteen_id) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid request: student_id, canteen_id, and items are required'
+        });
+    }
+
+    const canteen = canteenMenus[canteen_id];
+    if (!canteen) {
+        return res.status(400).json({ success: false, error: 'Invalid canteen' });
+    }
+
     const orderItems = [];
     let totalAmount = 0;
 
     for (const item of items) {
-        const menuItem = getMenuItemById(item.menu_item_id);
+        const menuItem = getMenuItemById(canteen_id, item.menu_item_id);
         if (!menuItem) {
             return res.status(400).json({
                 success: false,
                 error: `Menu item not found: ${item.menu_item_id}`
+            });
+        }
+
+        // Check availability  
+        if (!menuItem.available) {
+            return res.status(400).json({
+                success: false,
+                error: `"${menuItem.name}" is currently not available`
             });
         }
 
@@ -188,10 +478,11 @@ app.post('/api/order/create', (req, res) => {
         totalAmount += menuItem.price * item.quantity;
     }
 
-    // Create order with fake Order ID
     const orderId = generateOrderId();
     const order = {
         id: orderId,
+        canteen_id,
+        canteen_name: canteen.name,
         student_id,
         student_name: student_name || 'Student',
         items: orderItems,
@@ -202,98 +493,68 @@ app.post('/api/order/create', (req, res) => {
 
     orders.set(orderId, order);
 
-    console.log(`📝 New Order: #${orderId.toUpperCase()} - ${student_name} (${student_id}) - ₹${totalAmount}`);
+    console.log(`📝 [${canteen.name}] New Order: #${orderId.toUpperCase()} - ${student_name} (${student_id}) - ₹${totalAmount}`);
 
-    res.status(201).json({
-        success: true,
-        order
-    });
+    res.status(201).json({ success: true, order });
 });
 
-// Get Order
 app.get('/api/order/:order_id', (req, res) => {
     const order = orders.get(req.params.order_id);
-
     if (!order) {
-        return res.status(404).json({
-            success: false,
-            error: 'Order not found'
-        });
+        return res.status(404).json({ success: false, error: 'Order not found' });
     }
-
-    res.json({
-        success: true,
-        order
-    });
+    res.json({ success: true, order });
 });
 
-// Get All Orders (Admin)
-app.get('/api/admin/orders', (req, res) => {
-    const ordersList = Array.from(orders.values());
-
-    res.json({
-        success: true,
-        orders: ordersList
-    });
+// Admin: Get orders for their canteen
+app.get('/api/admin/orders', requireAdmin, (req, res) => {
+    const canteenId = req.adminSession.canteenId;
+    const ordersList = Array.from(orders.values()).filter(o => o.canteen_id === canteenId);
+    res.json({ success: true, orders: ordersList });
 });
 
-// Mark Order as Collected (Admin)
-app.post('/api/admin/order/collect', (req, res) => {
+// Admin: Mark order as collected
+app.post('/api/admin/order/collect', requireAdmin, (req, res) => {
     const { order_id } = req.body;
+    const canteenId = req.adminSession.canteenId;
 
     if (!order_id) {
-        return res.status(400).json({
-            success: false,
-            error: 'Order ID is required'
-        });
+        return res.status(400).json({ success: false, error: 'Order ID is required' });
     }
 
     const order = orders.get(order_id);
-
     if (!order) {
-        return res.status(404).json({
-            success: false,
-            error: 'Order not found'
-        });
+        return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    // Verify order belongs to this canteen
+    if (order.canteen_id !== canteenId) {
+        return res.status(403).json({ success: false, error: 'This order belongs to a different canteen' });
     }
 
     order.order_status = 'COLLECTED';
     order.collected_at = new Date().toISOString();
 
-    console.log(`✅ Order Collected: #${order_id.toUpperCase()} - ${order.student_name}`);
+    console.log(`✅ [${order.canteen_name}] Order Collected: #${order_id.toUpperCase()} - ${order.student_name}`);
 
-    res.json({
-        success: true,
-        order,
-        message: 'Order marked as collected'
-    });
+    res.json({ success: true, order, message: 'Order marked as collected' });
 });
 
 // ============================================
-// Payment Routes (Razorpay)
+// API: Payment Routes (Razorpay)
 // ============================================
-
-// Initiate Payment - Creates Razorpay order
 app.post('/api/payment/initiate', (req, res) => {
     const { order_id } = req.body;
 
     if (!order_id) {
-        return res.status(400).json({
-            success: false,
-            error: 'Order ID is required'
-        });
+        return res.status(400).json({ success: false, error: 'Order ID is required' });
     }
 
     const order = orders.get(order_id);
-
     if (!order) {
-        return res.status(404).json({
-            success: false,
-            error: 'Order not found'
-        });
+        return res.status(404).json({ success: false, error: 'Order not found' });
     }
 
-    // Generate Razorpay order ID (simulated for demo)
     const razorpayOrderId = 'order_' + order.id;
 
     console.log(`💳 Payment Initiated: #${order_id.toUpperCase()} - ₹${order.total_amount}`);
@@ -302,7 +563,7 @@ app.post('/api/payment/initiate', (req, res) => {
         success: true,
         razorpay_order_id: razorpayOrderId,
         razorpay_key_id: RAZORPAY_KEY_ID,
-        amount: order.total_amount * 100, // Razorpay expects amount in paise
+        amount: order.total_amount * 100,
         currency: 'INR',
         order_id: order.id,
         student_id: order.student_id,
@@ -314,7 +575,6 @@ app.post('/api/payment/initiate', (req, res) => {
     });
 });
 
-// Verify Payment - Validates Razorpay signature
 app.post('/api/payment/verify', (req, res) => {
     const { order_id, razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
 
@@ -325,7 +585,6 @@ app.post('/api/payment/verify', (req, res) => {
         });
     }
 
-    // Verify signature if provided (only possible if order_id was used in frontend)
     let signatureValid = true;
     if (razorpay_order_id && razorpay_signature) {
         const data = razorpay_order_id + '|' + razorpay_payment_id;
@@ -333,7 +592,6 @@ app.post('/api/payment/verify', (req, res) => {
             .createHmac('sha256', RAZORPAY_KEY_SECRET)
             .update(data)
             .digest('hex');
-
         signatureValid =
             razorpay_signature === expectedSignature ||
             razorpay_signature === 'test_signature' ||
@@ -341,20 +599,12 @@ app.post('/api/payment/verify', (req, res) => {
     }
 
     if (!signatureValid) {
-        return res.status(400).json({
-            success: false,
-            error: 'Payment verification failed'
-        });
+        return res.status(400).json({ success: false, error: 'Payment verification failed' });
     }
 
-    // Update order status
     const order = orders.get(order_id);
-
     if (!order) {
-        return res.status(404).json({
-            success: false,
-            error: 'Order not found'
-        });
+        return res.status(404).json({ success: false, error: 'Order not found' });
     }
 
     order.payment_status = 'PAID';
@@ -363,35 +613,44 @@ app.post('/api/payment/verify', (req, res) => {
 
     console.log(`✅ Payment Verified: #${order_id.toUpperCase()} - ₹${order.total_amount} - Razorpay: ${razorpay_payment_id}`);
 
-    res.json({
-        success: true,
-        message: 'Payment verified successfully',
-        order
-    });
+    res.json({ success: true, message: 'Payment verified successfully', order });
 });
 
 // ============================================
 // Start Server
 // ============================================
-app.listen(PORT, () => {
-    console.log('');
-    console.log('🍽️  ========================================');
-    console.log('🍽️  Sathyabama Canteen Server Started!');
-    console.log('🍽️  ========================================');
-    console.log('');
-    console.log(`📍 Server running at: http://localhost:${PORT}`);
-    console.log('');
-    console.log('📱 Pages:');
-    console.log(`   • Student Login:  http://localhost:${PORT}/`);
-    console.log(`   • Food Menu:      http://localhost:${PORT}/menu`);
-    console.log(`   • Receipt:        http://localhost:${PORT}/receipt`);
-    console.log(`   • Admin Panel:    http://localhost:${PORT}/admin`);
-    console.log('');
-    console.log('🎓 Demo Register Numbers:');
-    console.log('   • 41110234 - Rahul Kumar');
-    console.log('   • 41110235 - Priya Sharma');
-    console.log('   • 12345678 - Demo Student');
-    console.log('');
-    console.log('✨ Ready to serve hungry students!');
-    console.log('');
-});
+async function startServer() {
+    // Load menu first (async)
+    await loadMenu();
+
+    app.listen(PORT, () => {
+        console.log('');
+        console.log('🍽️  ========================================');
+        console.log('🍽️  Sathyabama Canteen Server Started!');
+        console.log('🍽️  ========================================');
+        console.log('');
+        console.log(`📍 Server running at: http://localhost:${PORT}`);
+        console.log('');
+        console.log('📱 Student Pages:');
+        console.log(`   • Student Login:     http://localhost:${PORT}/`);
+        console.log(`   • Select Canteen:    http://localhost:${PORT}/select-canteen`);
+        console.log(`   • Food Menu:         http://localhost:${PORT}/menu?canteen=advanced-canteen`);
+        console.log(`   • Receipt:           http://localhost:${PORT}/receipt`);
+        console.log('');
+        console.log('🔐 Admin Pages:');
+        console.log(`   • Admin Login:       http://localhost:${PORT}/admin-login`);
+        console.log(`   • Admin Panel:       http://localhost:${PORT}/admin?canteen=advanced-canteen`);
+        console.log('');
+        console.log('🏪 Canteens:');
+        for (const [id, canteen] of Object.entries(canteenMenus)) {
+            console.log(`   • ${canteen.name} (${id})`);
+        }
+        console.log('');
+        console.log('🔑 Admin Credentials:  admin / admin');
+        console.log('');
+        console.log('✨ Ready to serve hungry students!');
+        console.log('');
+    });
+}
+
+startServer();

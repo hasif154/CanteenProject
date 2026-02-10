@@ -20,8 +20,11 @@
     <header class="header">
         <div class="header-content">
             <div class="header-logo">
+                <a href="/select-canteen" class="back-link" title="Change Canteen">
+                    <span class="back-arrow">←</span>
+                </a>
                 <div class="header-logo-icon">🍽️</div>
-                <span class="header-title">Sathyabama Canteen</span>
+                <span class="header-title" id="canteenTitle">Loading...</span>
             </div>
             <div class="user-info" id="userInfo">
                 <span class="icon">🎓</span>
@@ -29,6 +32,12 @@
             </div>
         </div>
     </header>
+
+    <!-- Live Status Banner -->
+    <div class="live-banner" id="liveBanner">
+        <span class="live-dot"></span>
+        <span>Live Menu • Auto-refreshing</span>
+    </div>
 
     <!-- Category Tabs -->
     <nav class="category-tabs">
@@ -44,7 +53,6 @@
     <!-- Menu Grid -->
     <main class="menu-section">
         <div class="menu-grid" id="menuGrid">
-            <!-- Food cards will be loaded here -->
             <div class="loading">
                 <div class="spinner"></div>
             </div>
@@ -92,6 +100,11 @@
         </div>
     </div>
 
+    <!-- Menu Update Toast -->
+    <div class="menu-toast" id="menuToast">
+        <span>🔄</span> Menu updated by admin
+    </div>
+
     <script>
         // ============================================
         // State Management
@@ -101,6 +114,9 @@
         let registerNumber = '';
         let studentName = '';
         let currentCategory = 'all';
+        let canteenId = '';
+        let canteenName = '';
+        let lastMenuVersion = -1;
 
         // ============================================
         // Initialization
@@ -115,11 +131,20 @@
                 return;
             }
 
-            // Display user info: REGISTER_NUMBER – STUDENT_NAME
+            // Get canteen from URL params
+            const urlParams = new URLSearchParams(window.location.search);
+            canteenId = urlParams.get('canteen');
+
+            if (!canteenId) {
+                window.location.href = '/select-canteen';
+                return;
+            }
+
+            // Display user info
             document.getElementById('userDisplay').textContent = `${registerNumber} – ${studentName}`;
 
-            // Load cart from session
-            const savedCart = localStorage.getItem('cart');
+            // Load cart from session (per canteen)
+            const savedCart = localStorage.getItem('cart_' + canteenId);
             if (savedCart) {
                 cart = JSON.parse(savedCart);
             }
@@ -129,6 +154,9 @@
 
             // Set up event listeners
             setupEventListeners();
+
+            // Live polling for menu changes every 5 seconds
+            setInterval(checkMenuUpdates, 5000);
         });
 
         // ============================================
@@ -136,13 +164,24 @@
         // ============================================
         async function fetchMenu() {
             try {
-                const response = await fetch('/api/menu');
+                const response = await fetch(`/api/menu/${canteenId}`);
                 const data = await response.json();
 
                 if (data.success) {
                     menuItems = data.menu;
+                    canteenName = data.canteenName;
+                    lastMenuVersion = data.menuVersion;
+
+                    document.getElementById('canteenTitle').textContent = canteenName;
+                    document.title = `Menu - ${canteenName}`;
+
+                    // Remove cart items that are no longer available
+                    cleanupCart();
+
                     renderMenu();
                     updateCartUI();
+                } else {
+                    throw new Error(data.error || 'Failed to load menu');
                 }
             } catch (error) {
                 console.error('Error fetching menu:', error);
@@ -153,6 +192,40 @@
                         <p>Please refresh the page to try again</p>
                     </div>
                 `;
+            }
+        }
+
+        async function checkMenuUpdates() {
+            try {
+                const response = await fetch('/api/menu-version');
+                const data = await response.json();
+
+                if (data.success && data.version !== lastMenuVersion) {
+                    console.log('📡 Menu updated! Refreshing...');
+                    await fetchMenu();
+
+                    // Show update toast
+                    const toast = document.getElementById('menuToast');
+                    toast.classList.add('show');
+                    setTimeout(() => toast.classList.remove('show'), 3000);
+                }
+            } catch {
+                // Silently fail - will retry on next interval
+            }
+        }
+
+        function cleanupCart() {
+            // Remove items from cart that are no longer available
+            const newCart = {};
+            for (const [id, qty] of Object.entries(cart)) {
+                const item = menuItems.find(m => m.id === id);
+                if (item && item.available) {
+                    newCart[id] = qty;
+                }
+            }
+            if (Object.keys(newCart).length !== Object.keys(cart).length) {
+                cart = newCart;
+                saveCart();
             }
         }
 
@@ -169,7 +242,8 @@
                     body: JSON.stringify({
                         student_id: registerNumber,
                         student_name: studentName,
-                        items: items
+                        items: items,
+                        canteen_id: canteenId
                     })
                 });
 
@@ -201,23 +275,30 @@
                 return;
             }
 
-            grid.innerHTML = filteredItems.map(item => `
-                <div class="food-card ${cart[item.id] ? 'in-cart' : ''}" data-id="${item.id}">
+            grid.innerHTML = filteredItems.map(item => {
+                const isAvailable = item.available !== false;
+                const inCart = cart[item.id] && isAvailable;
+
+                return `
+                <div class="food-card ${inCart ? 'in-cart' : ''} ${!isAvailable ? 'sold-out' : ''}" data-id="${item.id}">
                     <div class="food-image-container">
                         <img 
                             class="food-image" 
-                            src="${item.image}" 
+                            src="${item.image || ''}" 
                             alt="${item.name}"
                             loading="lazy"
                             onerror="this.src='https://placehold.co/300x200?text=${encodeURIComponent(item.emoji)}'"
                         >
                         <span class="food-emoji">${item.emoji}</span>
+                        ${!isAvailable ? '<div class="sold-out-overlay"><span>Sold Out</span></div>' : ''}
                     </div>
                     <div class="food-card-body">
                         <h3 class="food-name">${item.name}</h3>
                         <p class="food-price">₹${item.price}</p>
                         <div class="food-actions">
-                            ${cart[item.id] ? `
+                            ${!isAvailable ? `
+                                <span class="unavailable-tag">❌ Not Available</span>
+                            ` : inCart ? `
                                 <div class="qty-controls">
                                     <button class="qty-btn" data-action="decrease" data-id="${item.id}">−</button>
                                     <span class="qty-value">${cart[item.id]}</span>
@@ -229,7 +310,8 @@
                         </div>
                     </div>
                 </div>
-            `).join('');
+            `;
+            }).join('');
         }
 
         function renderCartModal() {
@@ -277,7 +359,6 @@
                 return sum + (item ? item.price * qty : 0);
             }, 0);
 
-            // Update floating cart
             const floatingCart = document.getElementById('floatingCart');
             if (totalItems > 0) {
                 floatingCart.classList.remove('hidden');
@@ -287,21 +368,23 @@
                 floatingCart.classList.add('hidden');
             }
 
-            // Update modal total
             document.getElementById('modalTotal').textContent = totalAmount;
 
-            // Save cart to localStorage
-            localStorage.setItem('cart', JSON.stringify(cart));
-
-            // Re-render menu to update cart states
+            saveCart();
             renderMenu();
             renderCartModal();
+        }
+
+        function saveCart() {
+            localStorage.setItem('cart_' + canteenId, JSON.stringify(cart));
         }
 
         // ============================================
         // Cart Functions
         // ============================================
         function addToCart(itemId) {
+            const item = menuItems.find(m => m.id === itemId);
+            if (!item || !item.available) return;
             cart[itemId] = (cart[itemId] || 0) + 1;
             updateCartUI();
         }
@@ -332,7 +415,6 @@
             placeOrderBtn.innerHTML = '<span class="btn-text">Processing...</span><span class="btn-loader"></span>';
 
             try {
-                // 1. Create Order (Pending state)
                 const orderResult = await createOrder();
 
                 if (!orderResult.success) {
@@ -341,7 +423,6 @@
 
                 const order = orderResult.order;
 
-                // 2. Initiate Payment
                 const paymentResponse = await fetch('/api/payment/initiate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -354,18 +435,15 @@
                     throw new Error(paymentData.error || 'Failed to initiate payment');
                 }
 
-                // 3. Open Razorpay Checkout
                 const options = {
                     key: paymentData.razorpay_key_id,
                     amount: paymentData.amount,
                     currency: paymentData.currency,
-                    name: "Sathyabama Canteen",
+                    name: canteenName || "Sathyabama Canteen",
                     description: "Food Order #" + order.id.toUpperCase(),
-                    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Samosa-Indian.jpg/1280px-Samosa-Indian.jpg", // Logo
-                    // order_id: paymentData.razorpay_order_id, // Commented out for Demo Mode (Self-hosted order IDs)
+                    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Samosa-Indian.jpg/1280px-Samosa-Indian.jpg",
                     handler: async function (response) {
                         try {
-                            // 4. Verify Payment
                             const verifyResponse = await fetch('/api/payment/verify', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
@@ -380,11 +458,12 @@
                             const verifyData = await verifyResponse.json();
 
                             if (verifyData.success) {
-                                // 5. Success! Redirect to receipt
                                 cart = {};
-                                localStorage.removeItem('cart');
+                                localStorage.removeItem('cart_' + canteenId);
                                 localStorage.setItem('lastOrderId', order.id);
                                 localStorage.setItem('lastOrder', JSON.stringify(verifyData.order));
+                                localStorage.setItem('lastCanteenId', canteenId);
+                                localStorage.setItem('lastCanteenName', canteenName);
                                 window.location.href = '/receipt?order_id=' + order.id;
                             } else {
                                 alert('Payment verification failed: ' + verifyData.error);
@@ -395,9 +474,7 @@
                         }
                     },
                     prefill: paymentData.prefill,
-                    theme: {
-                        color: "#1e3a8a"
-                    },
+                    theme: { color: "#1e3a8a" },
                     modal: {
                         ondismiss: function () {
                             placeOrderBtn.disabled = false;
@@ -412,7 +489,7 @@
 
             } catch (error) {
                 console.error('Order processing error:', error);
-                alert('Debug Error: ' + (error.message || 'An error occurred. Please try again.'));
+                alert('Error: ' + (error.message || 'An error occurred. Please try again.'));
                 placeOrderBtn.disabled = false;
                 placeOrderBtn.innerHTML = '<span class="btn-text">✓ Place Order</span>';
             }
@@ -435,7 +512,6 @@
             // Menu grid click delegation
             document.getElementById('menuGrid').addEventListener('click', (e) => {
                 const target = e.target;
-
                 if (target.dataset.action === 'add') {
                     addToCart(target.dataset.id);
                 } else if (target.dataset.action === 'increase') {
@@ -448,7 +524,6 @@
             // Cart modal click delegation
             document.getElementById('cartItems').addEventListener('click', (e) => {
                 const target = e.target;
-
                 if (target.dataset.action === 'increase') {
                     increaseQty(target.dataset.id);
                 } else if (target.dataset.action === 'decrease') {
@@ -480,12 +555,160 @@
             // User info click - logout option
             document.getElementById('userInfo').addEventListener('click', () => {
                 if (confirm('Do you want to logout?')) {
-                    localStorage.clear();
+                    localStorage.removeItem('registerNumber');
+                    localStorage.removeItem('studentName');
+                    // Clear all canteen carts
+                    Object.keys(localStorage).forEach(key => {
+                        if (key.startsWith('cart_')) localStorage.removeItem(key);
+                    });
                     window.location.href = '/';
                 }
             });
         }
     </script>
+
+    <style>
+        /* Back link in header */
+        .back-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: var(--radius-lg);
+            text-decoration: none;
+            color: white;
+            font-size: 1.125rem;
+            transition: all var(--transition-fast);
+            flex-shrink: 0;
+        }
+
+        .back-link:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        /* Live Banner */
+        .live-banner {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-sm);
+            padding: var(--space-xs) var(--space-md);
+            background: linear-gradient(90deg, #065f46, #047857);
+            color: #a7f3d0;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            background: #34d399;
+            border-radius: 50%;
+            animation: livePulse 2s ease-in-out infinite;
+        }
+
+        @keyframes livePulse {
+
+            0%,
+            100% {
+                opacity: 1;
+                box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.5);
+            }
+
+            50% {
+                opacity: 0.7;
+                box-shadow: 0 0 0 6px rgba(52, 211, 153, 0);
+            }
+        }
+
+        /* Sold Out Styles */
+        .food-card.sold-out {
+            opacity: 0.65;
+            pointer-events: none;
+            filter: grayscale(0.3);
+        }
+
+        .food-card.sold-out .food-card-body {
+            opacity: 0.7;
+        }
+
+        .sold-out-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.55);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+        }
+
+        .sold-out-overlay span {
+            background: var(--error);
+            color: white;
+            padding: var(--space-xs) var(--space-lg);
+            border-radius: var(--radius-full);
+            font-size: 0.8125rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .unavailable-tag {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--error);
+            padding: var(--space-xs) var(--space-sm);
+            background: var(--error-light);
+            border-radius: var(--radius-full);
+        }
+
+        /* Menu Update Toast */
+        .menu-toast {
+            position: fixed;
+            top: -60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--gray-900);
+            color: white;
+            padding: var(--space-sm) var(--space-lg);
+            border-radius: var(--radius-full);
+            font-size: 0.875rem;
+            font-weight: 600;
+            box-shadow: var(--shadow-xl);
+            transition: top 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+
+        .menu-toast.show {
+            top: var(--space-lg);
+        }
+
+        /* Mobile header adjustments */
+        @media (max-width: 480px) {
+            .header-logo {
+                gap: var(--space-xs);
+            }
+
+            .back-link {
+                width: 30px;
+                height: 30px;
+                font-size: 0.9rem;
+            }
+
+            .header-logo-icon {
+                width: 30px;
+                height: 30px;
+                font-size: 1rem;
+            }
+        }
+    </style>
 </body>
 
 </html>

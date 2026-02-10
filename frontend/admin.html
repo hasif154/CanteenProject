@@ -21,21 +21,33 @@
         <div class="admin-header-content">
             <div class="admin-title">
                 <span>🍽️</span>
-                <h1>Sathyabama Canteen</h1>
+                <h1 id="canteenTitle">Loading...</h1>
                 <span class="admin-badge">ADMIN</span>
             </div>
             <div class="header-actions">
                 <button class="scan-btn" id="scanBtn">
                     <span>📷</span>
-                    <span>Scan QR</span>
+                    <span class="btn-label">Scan QR</span>
                 </button>
                 <button class="refresh-btn" id="refreshBtn">
                     <span>🔄</span>
-                    <span>Refresh</span>
+                    <span class="btn-label">Refresh</span>
+                </button>
+                <button class="refresh-btn" id="logoutBtn" style="border-color: rgba(239,68,68,0.5); color: #fca5a5;">
+                    <span>🚪</span>
+                    <span class="btn-label">Logout</span>
                 </button>
             </div>
         </div>
     </header>
+
+    <!-- Tab Navigation -->
+    <nav class="admin-tabs">
+        <div class="admin-tabs-container">
+            <button class="admin-tab active" data-tab="orders">📋 Orders</button>
+            <button class="admin-tab" data-tab="menu">🍽️ Menu</button>
+        </div>
+    </nav>
 
     <!-- Stats Section -->
     <section class="admin-stats" id="statsSection">
@@ -57,8 +69,8 @@
         </div>
     </section>
 
-    <!-- Orders Section -->
-    <section class="orders-section">
+    <!-- ORDERS TAB -->
+    <section class="orders-section tab-content active" id="ordersTab">
         <div class="section-header">
             <h2>📋 Orders</h2>
             <div class="filter-tabs">
@@ -67,8 +79,34 @@
                 <button class="filter-btn" data-filter="collected">Collected</button>
             </div>
         </div>
-
         <div class="orders-list" id="ordersList">
+            <div class="loading">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- MENU MANAGEMENT TAB -->
+    <section class="menu-management-section tab-content" id="menuTab">
+        <div class="section-header">
+            <h2>🍽️ Menu Availability</h2>
+            <div class="menu-bulk-actions">
+                <button class="bulk-btn bulk-available" id="bulkAvailableBtn">
+                    <span>✅</span> All Available
+                </button>
+                <button class="bulk-btn bulk-unavailable" id="bulkUnavailableBtn">
+                    <span>❌</span> All Unavailable
+                </button>
+            </div>
+        </div>
+        <div class="menu-status-bar" id="menuStatusBar">
+            <span class="status-dot available"></span>
+            <span id="availableCount">0</span> Available
+            <span class="status-separator">•</span>
+            <span class="status-dot unavailable"></span>
+            <span id="unavailableCount">0</span> Unavailable
+        </div>
+        <div class="admin-menu-grid" id="adminMenuGrid">
             <div class="loading">
                 <div class="spinner"></div>
             </div>
@@ -89,48 +127,142 @@
         </div>
     </div>
 
+    <!-- Toast Notification -->
+    <div class="toast-container" id="toastContainer"></div>
+
     <script>
         // ============================================
         // State
         // ============================================
         let allOrders = [];
+        let menuItems = [];
         let currentFilter = 'all';
+        let currentTab = 'orders';
+        let adminToken = '';
+        let canteenId = '';
+        let canteenName = '';
+
+        // ============================================
+        // Authentication Check
+        // ============================================
+        function getAdminAuth() {
+            adminToken = localStorage.getItem('adminToken');
+            canteenId = localStorage.getItem('adminCanteenId');
+            canteenName = localStorage.getItem('adminCanteenName');
+
+            if (!adminToken || !canteenId) {
+                window.location.href = '/admin-login';
+                return false;
+            }
+            return true;
+        }
+
+        function authHeaders() {
+            return { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken };
+        }
+
+        async function verifySession() {
+            try {
+                const response = await fetch('/api/admin/check-session', {
+                    headers: { 'X-Admin-Token': adminToken }
+                });
+                const data = await response.json();
+                if (!data.success) {
+                    showToast('Session expired. Redirecting to login...', 'error');
+                    setTimeout(() => {
+                        localStorage.removeItem('adminToken');
+                        localStorage.removeItem('adminCanteenId');
+                        localStorage.removeItem('adminCanteenName');
+                        window.location.href = '/admin-login';
+                    }, 1500);
+                    return false;
+                }
+                canteenName = data.canteenName;
+                return true;
+            } catch {
+                return false;
+            }
+        }
 
         // ============================================
         // Initialization
         // ============================================
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!getAdminAuth()) return;
+
+            const valid = await verifySession();
+            if (!valid) return;
+
+            document.getElementById('canteenTitle').textContent = canteenName;
+            document.title = `Admin - ${canteenName}`;
+
             fetchOrders();
+            fetchMenu();
             setupEventListeners();
 
-            // Auto-refresh every 30 seconds
-            setInterval(fetchOrders, 30000);
+            // Auto-refresh every 15 seconds
+            setInterval(() => {
+                if (currentTab === 'orders') fetchOrders();
+                if (currentTab === 'menu') fetchMenu();
+            }, 15000);
         });
+
+        // ============================================
+        // Toast Notifications
+        // ============================================
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `
+                <span class="toast-icon">${type === 'success' ? '✅' : type === 'error' ? '❌' : '⚠️'}</span>
+                <span class="toast-text">${message}</span>
+            `;
+            container.appendChild(toast);
+
+            setTimeout(() => toast.classList.add('show'), 50);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
 
         // ============================================
         // API Functions
         // ============================================
         async function fetchOrders() {
             try {
-                const response = await fetch('/api/admin/orders');
+                const response = await fetch('/api/admin/orders', {
+                    headers: { 'X-Admin-Token': adminToken }
+                });
                 const data = await response.json();
 
                 if (data.success) {
                     allOrders = data.orders || [];
-                    // Sort by created_at descending (newest first)
                     allOrders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
                     updateStats();
                     renderOrders();
+                } else if (response.status === 401) {
+                    window.location.href = '/admin-login';
                 }
             } catch (error) {
                 console.error('Error fetching orders:', error);
-                document.getElementById('ordersList').innerHTML = `
-                    <div class="empty-state">
-                        <div class="icon">😕</div>
-                        <h3>Failed to load orders</h3>
-                        <p>Please refresh the page</p>
-                    </div>
-                `;
+            }
+        }
+
+        async function fetchMenu() {
+            try {
+                const response = await fetch('/api/admin/menu', {
+                    headers: { 'X-Admin-Token': adminToken }
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    menuItems = data.menu || [];
+                    renderMenuManagement();
+                }
+            } catch (error) {
+                console.error('Error fetching menu:', error);
             }
         }
 
@@ -138,14 +270,13 @@
             try {
                 const response = await fetch('/api/admin/order/collect', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: authHeaders(),
                     body: JSON.stringify({ order_id: orderId })
                 });
 
                 const data = await response.json();
 
                 if (data.success) {
-                    // Update local state
                     const order = allOrders.find(o => o.id === orderId);
                     if (order) {
                         order.order_status = 'COLLECTED';
@@ -153,12 +284,59 @@
                     }
                     updateStats();
                     renderOrders();
+                    showToast(`Order #${orderId.toUpperCase()} marked as collected`);
                 } else {
-                    alert(data.error || 'Failed to mark as collected');
+                    showToast(data.error || 'Failed to mark as collected', 'error');
                 }
             } catch (error) {
                 console.error('Error marking order:', error);
-                alert('Connection error. Please try again.');
+                showToast('Connection error. Please try again.', 'error');
+            }
+        }
+
+        async function toggleItemAvailability(itemId, available) {
+            try {
+                const response = await fetch('/api/admin/menu/toggle', {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify({ itemId, available })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const item = menuItems.find(i => i.id === itemId);
+                    if (item) item.available = available;
+                    renderMenuManagement();
+                    showToast(data.message);
+                } else {
+                    showToast(data.error || 'Failed to update', 'error');
+                }
+            } catch (error) {
+                console.error('Error toggling item:', error);
+                showToast('Connection error', 'error');
+            }
+        }
+
+        async function bulkToggle(available) {
+            try {
+                const response = await fetch('/api/admin/menu/bulk-toggle', {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify({ available })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    menuItems.forEach(item => item.available = available);
+                    renderMenuManagement();
+                    showToast(data.message);
+                } else {
+                    showToast(data.error || 'Failed to update', 'error');
+                }
+            } catch (error) {
+                showToast('Connection error', 'error');
             }
         }
 
@@ -179,8 +357,6 @@
 
         function renderOrders() {
             const container = document.getElementById('ordersList');
-
-            // Filter orders
             let filteredOrders = allOrders;
 
             if (currentFilter === 'pending') {
@@ -259,91 +435,106 @@
             `).join('');
         }
 
+        function renderMenuManagement() {
+            const grid = document.getElementById('adminMenuGrid');
+            const availableItems = menuItems.filter(i => i.available);
+            const unavailableItems = menuItems.filter(i => !i.available);
+
+            document.getElementById('availableCount').textContent = availableItems.length;
+            document.getElementById('unavailableCount').textContent = unavailableItems.length;
+
+            if (menuItems.length === 0) {
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">🍽️</div>
+                        <h3>No menu items</h3>
+                        <p>Menu data not loaded</p>
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = menuItems.map(item => `
+                <div class="menu-manage-card ${item.available ? '' : 'unavailable'}" data-item-id="${item.id}">
+                    <div class="menu-manage-header">
+                        <span class="menu-manage-emoji">${item.emoji}</span>
+                        <div class="menu-manage-info">
+                            <span class="menu-manage-name">${item.name}</span>
+                            <span class="menu-manage-price">₹${item.price}</span>
+                        </div>
+                    </div>
+                    <div class="menu-manage-footer">
+                        <span class="availability-badge ${item.available ? 'available' : 'unavailable'}">
+                            ${item.available ? '✅ Available' : '❌ Sold Out'}
+                        </span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" ${item.available ? 'checked' : ''} 
+                                data-item-id="${item.id}" 
+                                class="toggle-input">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+            `).join('');
+        }
+
         function formatTime(dateString) {
             const date = new Date(dateString);
             const now = new Date();
             const isToday = date.toDateString() === now.toDateString();
 
-            const timeOptions = {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true
-            };
+            const timeOptions = { hour: '2-digit', minute: '2-digit', hour12: true };
 
             if (isToday) {
                 return 'Today ' + date.toLocaleTimeString('en-IN', timeOptions);
             }
 
-            const dateOptions = {
-                day: '2-digit',
-                month: 'short',
-                ...timeOptions
-            };
-
-            return date.toLocaleDateString('en-IN', dateOptions);
+            return date.toLocaleDateString('en-IN', {
+                day: '2-digit', month: 'short', ...timeOptions
+            });
         }
 
         // ============================================
-        // Event Listeners
-        // ============================================
-        // ============================================
-        // QR Scanner Logic
+        // QR Scanner
         // ============================================
         let html5QrcodeScanner = null;
 
         function initializeScanner() {
-            const scannerModal = document.getElementById('scannerModal');
-            scannerModal.classList.add('active');
+            document.getElementById('scannerModal').classList.add('active');
 
             if (!html5QrcodeScanner) {
                 html5QrcodeScanner = new Html5Qrcode("reader");
             }
 
-            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-
             html5QrcodeScanner.start(
                 { facingMode: "environment" },
-                config,
+                { fps: 10, qrbox: { width: 250, height: 250 } },
                 onScanSuccess,
-                (errorMessage) => {
-                    // parse error, ignore 
-                }
+                () => { }
             ).catch(err => {
                 console.error("Error starting scanner", err);
-                alert("Failed to start camera. Please check permissions.");
+                showToast("Failed to start camera. Check permissions.", 'error');
             });
         }
 
-        async function onScanSuccess(decodedText, decodedResult) {
-            console.log(`Scan result: ${decodedText}`);
-
-            // Expected format: SATHYABAMA-CANTEEN|Order:ORDER_ID|Reg:REG...
-            // Or simple Order ID
+        async function onScanSuccess(decodedText) {
             let orderId = null;
 
             if (decodedText.startsWith('SATHYABAMA-CANTEEN')) {
                 const parts = decodedText.split('|');
                 const orderPart = parts.find(p => p.startsWith('Order:'));
-                if (orderPart) {
-                    orderId = orderPart.split(':')[1];
-                }
-            } else {
-                // Try treating the whole text as ID if it's short
-                if (decodedText.length < 20) {
-                    orderId = decodedText;
-                }
+                if (orderPart) orderId = orderPart.split(':')[1];
+            } else if (decodedText.length < 20) {
+                orderId = decodedText;
             }
 
             if (orderId) {
-                // Stop scanning
                 stopScanner();
-
-                // Confirm and mark collected
                 if (confirm(`Order found: #${orderId}. Mark as collected?`)) {
                     await markAsCollected(orderId.trim());
                 }
             } else {
-                alert("Invalid QR Code format");
+                showToast("Invalid QR Code format", 'error');
             }
         }
 
@@ -356,25 +547,55 @@
         }
 
         // ============================================
-        // Event Listeners (Updated)
+        // Event Listeners
         // ============================================
         function setupEventListeners() {
+            // Tab switching
+            document.querySelectorAll('.admin-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    currentTab = tab.dataset.tab;
+                    document.getElementById(currentTab + 'Tab').classList.add('active');
+
+                    // Hide/show stats based on tab
+                    document.getElementById('statsSection').style.display = currentTab === 'orders' ? '' : 'none';
+                });
+            });
+
             // Scan Button
             document.getElementById('scanBtn').addEventListener('click', initializeScanner);
-
-            // Close Scanner Modal
             document.getElementById('closeScannerModal').addEventListener('click', stopScanner);
 
             // Refresh button
             document.getElementById('refreshBtn').addEventListener('click', () => {
                 const btn = document.getElementById('refreshBtn');
                 btn.disabled = true;
-                btn.innerHTML = '<span>⏳</span><span>Loading...</span>';
+                btn.querySelector('.btn-label').textContent = 'Loading...';
 
-                fetchOrders().finally(() => {
+                Promise.all([fetchOrders(), fetchMenu()]).finally(() => {
                     btn.disabled = false;
-                    btn.innerHTML = '<span>🔄</span><span>Refresh</span>';
+                    btn.querySelector('.btn-label').textContent = 'Refresh';
+                    showToast('Data refreshed');
                 });
+            });
+
+            // Logout button
+            document.getElementById('logoutBtn').addEventListener('click', async () => {
+                if (!confirm('Are you sure you want to logout?')) return;
+
+                try {
+                    await fetch('/api/admin/logout', {
+                        method: 'POST',
+                        headers: authHeaders()
+                    });
+                } catch { }
+
+                localStorage.removeItem('adminToken');
+                localStorage.removeItem('adminCanteenId');
+                localStorage.removeItem('adminCanteenName');
+                window.location.href = '/admin-login';
             });
 
             // Filter tabs
@@ -394,14 +615,338 @@
                     const orderId = collectBtn.dataset.orderId;
                     collectBtn.disabled = true;
                     collectBtn.innerHTML = '<span>⏳</span><span>Processing...</span>';
-
                     await markAsCollected(orderId);
                 }
+            });
+
+            // Menu toggle (event delegation)
+            document.getElementById('adminMenuGrid').addEventListener('change', (e) => {
+                if (e.target.classList.contains('toggle-input')) {
+                    const itemId = e.target.dataset.itemId;
+                    const available = e.target.checked;
+                    toggleItemAvailability(itemId, available);
+                }
+            });
+
+            // Bulk actions
+            document.getElementById('bulkAvailableBtn').addEventListener('click', () => {
+                if (confirm('Mark ALL items as available?')) bulkToggle(true);
+            });
+
+            document.getElementById('bulkUnavailableBtn').addEventListener('click', () => {
+                if (confirm('Mark ALL items as unavailable?')) bulkToggle(false);
             });
         }
     </script>
 
     <style>
+        /* Admin Tabs */
+        .admin-tabs {
+            background: white;
+            border-bottom: 1px solid var(--gray-200);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .admin-tabs-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            padding: 0 var(--space-lg);
+        }
+
+        .admin-tab {
+            padding: var(--space-md) var(--space-lg);
+            font-size: 0.9375rem;
+            font-weight: 600;
+            font-family: inherit;
+            color: var(--gray-500);
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .admin-tab:hover {
+            color: var(--gray-700);
+        }
+
+        .admin-tab.active {
+            color: var(--primary-600);
+            border-bottom-color: var(--primary-600);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Menu Management */
+        .menu-management-section {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: var(--space-lg);
+        }
+
+        .menu-bulk-actions {
+            display: flex;
+            gap: var(--space-sm);
+        }
+
+        .bulk-btn {
+            display: flex;
+            align-items: center;
+            gap: var(--space-xs);
+            padding: var(--space-sm) var(--space-md);
+            font-size: 0.8125rem;
+            font-weight: 600;
+            font-family: inherit;
+            border: none;
+            border-radius: var(--radius-lg);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .bulk-available {
+            background: var(--success-light);
+            color: #166534;
+        }
+
+        .bulk-available:hover {
+            background: #bbf7d0;
+        }
+
+        .bulk-unavailable {
+            background: var(--error-light);
+            color: #991b1b;
+        }
+
+        .bulk-unavailable:hover {
+            background: #fecaca;
+        }
+
+        .menu-status-bar {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            padding: var(--space-md);
+            background: white;
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--space-lg);
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--gray-600);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-dot.available {
+            background: var(--success);
+        }
+
+        .status-dot.unavailable {
+            background: var(--error);
+        }
+
+        .status-separator {
+            color: var(--gray-300);
+            margin: 0 var(--space-sm);
+        }
+
+        .admin-menu-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: var(--space-md);
+        }
+
+        .menu-manage-card {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: var(--space-lg);
+            box-shadow: var(--shadow-sm);
+            border: 2px solid transparent;
+            transition: all var(--transition-normal);
+        }
+
+        .menu-manage-card:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .menu-manage-card.unavailable {
+            border-color: var(--error);
+            background: #fef2f2;
+            opacity: 0.85;
+        }
+
+        .menu-manage-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+            margin-bottom: var(--space-md);
+        }
+
+        .menu-manage-emoji {
+            font-size: 2rem;
+            width: 50px;
+            height: 50px;
+            background: var(--gray-100);
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .menu-manage-card.unavailable .menu-manage-emoji {
+            filter: grayscale(1);
+            opacity: 0.5;
+        }
+
+        .menu-manage-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .menu-manage-name {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--gray-900);
+            display: block;
+        }
+
+        .menu-manage-price {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--primary-600);
+            display: block;
+            margin-top: 2px;
+        }
+
+        .menu-manage-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-top: var(--space-md);
+            border-top: 1px solid var(--gray-100);
+        }
+
+        .availability-badge {
+            font-size: 0.8125rem;
+            font-weight: 600;
+            padding: var(--space-xs) var(--space-sm);
+            border-radius: var(--radius-full);
+        }
+
+        .availability-badge.available {
+            background: var(--success-light);
+            color: #166534;
+        }
+
+        .availability-badge.unavailable {
+            background: var(--error-light);
+            color: #991b1b;
+        }
+
+        /* Toggle Switch */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 52px;
+            height: 28px;
+            flex-shrink: 0;
+        }
+
+        .toggle-input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--gray-300);
+            transition: 0.3s;
+            border-radius: 28px;
+        }
+
+        .toggle-slider::before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .toggle-input:checked+.toggle-slider {
+            background-color: var(--success);
+        }
+
+        .toggle-input:checked+.toggle-slider::before {
+            transform: translateX(24px);
+        }
+
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            bottom: var(--space-xl);
+            right: var(--space-xl);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-sm);
+        }
+
+        .toast {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            padding: var(--space-md) var(--space-lg);
+            background: var(--gray-900);
+            color: white;
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-xl);
+            font-size: 0.875rem;
+            font-weight: 500;
+            transform: translateX(120%);
+            transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            max-width: 350px;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast-error {
+            background: var(--error);
+        }
+
+        .toast-icon {
+            font-size: 1.125rem;
+            flex-shrink: 0;
+        }
+
+        /* Scanner Modal styles */
         .scanner-modal {
             background: white;
             border-radius: var(--radius-xl);
@@ -434,6 +979,7 @@
         .header-actions {
             display: flex;
             gap: var(--space-sm);
+            flex-wrap: wrap;
         }
 
         .scan-btn {
@@ -448,10 +994,120 @@
             color: var(--gray-800);
             cursor: pointer;
             transition: all var(--transition-fast);
+            font-family: inherit;
+            font-size: 0.875rem;
         }
 
         .scan-btn:hover {
             background: var(--gray-200);
+        }
+
+        /* Mobile responsive for admin */
+        @media (max-width: 768px) {
+            .admin-header-content {
+                flex-direction: column;
+                gap: var(--space-md);
+                text-align: center;
+            }
+
+            .admin-title {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .admin-title h1 {
+                font-size: 1.125rem;
+            }
+
+            .header-actions {
+                justify-content: center;
+            }
+
+            .section-header {
+                flex-direction: column;
+                gap: var(--space-md);
+                align-items: flex-start;
+            }
+
+            .menu-bulk-actions {
+                width: 100%;
+            }
+
+            .bulk-btn {
+                flex: 1;
+                justify-content: center;
+            }
+
+            .admin-menu-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .admin-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .order-meta {
+                flex-direction: column;
+                gap: var(--space-sm);
+            }
+
+            .filter-tabs {
+                width: 100%;
+                justify-content: stretch;
+            }
+
+            .filter-btn {
+                flex: 1;
+                text-align: center;
+            }
+
+            .toast-container {
+                left: var(--space-md);
+                right: var(--space-md);
+                bottom: var(--space-md);
+            }
+
+            .toast {
+                max-width: 100%;
+            }
+
+            .btn-label {
+                display: none;
+            }
+
+            .scan-btn,
+            .refresh-btn {
+                padding: var(--space-sm);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .admin-stats {
+                grid-template-columns: repeat(2, 1fr);
+                gap: var(--space-sm);
+            }
+
+            .stat-card {
+                padding: var(--space-md);
+            }
+
+            .stat-value {
+                font-size: 1.5rem;
+            }
+
+            .order-footer {
+                flex-direction: column;
+                gap: var(--space-sm);
+                align-items: stretch;
+            }
+
+            .collect-btn {
+                justify-content: center;
+            }
+
+            .menu-manage-card {
+                padding: var(--space-md);
+            }
         }
     </style>
 </body>

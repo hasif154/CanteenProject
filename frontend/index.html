@@ -84,6 +84,14 @@
                 <span class="feature-text">Skip Queue</span>
             </div>
         </div>
+
+        <!-- Admin Link -->
+        <div style="text-align:center; margin-top: var(--space-md);">
+            <a href="/admin-login"
+                style="color:rgba(255,255,255,0.5); text-decoration:none; font-size:0.75rem; font-weight:500;">
+                Admin Portal →
+            </a>
+        </div>
     </div>
 
     <script>
@@ -91,7 +99,7 @@
         const storedRegNo = localStorage.getItem('registerNumber');
         const storedName = localStorage.getItem('studentName');
         if (storedRegNo && storedName) {
-            window.location.href = '/menu';
+            window.location.href = '/select-canteen';
         }
 
         // Form submission handler
@@ -128,8 +136,8 @@
                     localStorage.setItem('registerNumber', data.registerNumber);
                     localStorage.setItem('studentName', data.name);
 
-                    // Redirect
-                    window.location.href = '/menu';
+                    // Redirect to canteen selection
+                    window.location.href = '/select-canteen';
                 } else {
                     // Show error from backend
                     errorText.textContent = data.message || "Login During You're Lunch Time";
