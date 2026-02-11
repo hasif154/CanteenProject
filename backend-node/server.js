@@ -203,6 +203,16 @@ app.post('/api/login', async (req, res) => {
         });
     }
 
+    // Hardcoded bypass for test student
+    if (registerNumber === '43613006' && password === '1234') {
+        console.log(`✅ Login Success (bypass): Mohit (43613006)`);
+        return res.json({
+            success: true,
+            registerNumber: '43613006',
+            name: 'Mohit'
+        });
+    }
+
     try {
         const { data: student, error } = await supabase
             .from('students')
