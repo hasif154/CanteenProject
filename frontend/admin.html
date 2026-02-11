@@ -91,6 +91,9 @@
         <div class="section-header">
             <h2>🍽️ Menu Availability</h2>
             <div class="menu-bulk-actions">
+                <button class="bulk-btn bulk-add" id="addItemBtn">
+                    <span>➕</span> Add Item
+                </button>
                 <button class="bulk-btn bulk-available" id="bulkAvailableBtn">
                     <span>✅</span> All Available
                 </button>
@@ -123,6 +126,69 @@
             <div class="scanner-body">
                 <div id="reader"></div>
                 <p class="scanner-instruction">Point camera at the student's receipt QR code</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Item Modal -->
+    <div class="modal-overlay" id="itemModal">
+        <div class="item-modal">
+            <div class="modal-header">
+                <h3 id="itemModalTitle">➕ Add New Item</h3>
+                <button class="close-modal" id="closeItemModal">×</button>
+            </div>
+            <div class="item-modal-body">
+                <div class="form-group">
+                    <label for="itemName">Item Name *</label>
+                    <input type="text" id="itemName" placeholder="e.g. Garlic Naan" maxlength="50" autocomplete="off">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="itemPrice">Price (₹) *</label>
+                        <input type="number" id="itemPrice" placeholder="e.g. 40" min="1" max="999">
+                    </div>
+                    <div class="form-group">
+                        <label for="itemCategory">Category *</label>
+                        <select id="itemCategory">
+                            <option value="">Select...</option>
+                            <option value="Main Course">Main Course</option>
+                            <option value="Snacks">Snacks</option>
+                            <option value="Chaat">Chaat</option>
+                            <option value="Beverages">Beverages</option>
+                            <option value="Desserts">Desserts</option>
+                            <option value="South Indian">South Indian</option>
+                            <option value="North Indian">North Indian</option>
+                            <option value="Chinese">Chinese</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Select Emoji</label>
+                    <div class="emoji-picker" id="emojiPicker">
+                        <button type="button" class="emoji-option selected" data-emoji="🍽️">🍽️</button>
+                        <button type="button" class="emoji-option" data-emoji="🍛">🍛</button>
+                        <button type="button" class="emoji-option" data-emoji="🍚">🍚</button>
+                        <button type="button" class="emoji-option" data-emoji="🍜">🍜</button>
+                        <button type="button" class="emoji-option" data-emoji="🫓">🫓</button>
+                        <button type="button" class="emoji-option" data-emoji="🥪">🥪</button>
+                        <button type="button" class="emoji-option" data-emoji="🍔">🍔</button>
+                        <button type="button" class="emoji-option" data-emoji="🌯">🌯</button>
+                        <button type="button" class="emoji-option" data-emoji="🍕">🍕</button>
+                        <button type="button" class="emoji-option" data-emoji="🥟">🥟</button>
+                        <button type="button" class="emoji-option" data-emoji="🍲">🍲</button>
+                        <button type="button" class="emoji-option" data-emoji="🍦">🍦</button>
+                        <button type="button" class="emoji-option" data-emoji="☕">☕</button>
+                        <button type="button" class="emoji-option" data-emoji="🥤">🥤</button>
+                        <button type="button" class="emoji-option" data-emoji="🧃">🧃</button>
+                        <button type="button" class="emoji-option" data-emoji="🍰">🍰</button>
+                        <button type="button" class="emoji-option" data-emoji="🍩">🍩</button>
+                        <button type="button" class="emoji-option" data-emoji="🥗">🥗</button>
+                        <button type="button" class="emoji-option" data-emoji="🍗">🍗</button>
+                        <button type="button" class="emoji-option" data-emoji="🥘">🥘</button>
+                    </div>
+                </div>
+                <input type="hidden" id="editItemId" value="">
+                <button class="item-submit-btn" id="itemSubmitBtn">➕ Add to Menu</button>
             </div>
         </div>
     </div>
@@ -341,6 +407,132 @@
         }
 
         // ============================================
+        // Add / Edit / Delete Menu Items
+        // ============================================
+        let selectedEmoji = '🍽️';
+
+        function openAddItemModal() {
+            document.getElementById('itemModalTitle').textContent = '➕ Add New Item';
+            document.getElementById('itemSubmitBtn').textContent = '➕ Add to Menu';
+            document.getElementById('itemName').value = '';
+            document.getElementById('itemPrice').value = '';
+            document.getElementById('itemCategory').value = '';
+            document.getElementById('editItemId').value = '';
+            selectedEmoji = '🍽️';
+            document.querySelectorAll('.emoji-option').forEach(btn => {
+                btn.classList.toggle('selected', btn.dataset.emoji === selectedEmoji);
+            });
+            document.getElementById('itemModal').classList.add('active');
+        }
+
+        function openEditItemModal(itemId) {
+            const item = menuItems.find(i => i.id === itemId);
+            if (!item) return;
+
+            document.getElementById('itemModalTitle').textContent = '✏️ Edit Item';
+            document.getElementById('itemSubmitBtn').textContent = '💾 Save Changes';
+            document.getElementById('itemName').value = item.name;
+            document.getElementById('itemPrice').value = item.price;
+            document.getElementById('itemCategory').value = item.category || '';
+            document.getElementById('editItemId').value = item.id;
+            selectedEmoji = item.emoji || '🍽️';
+            document.querySelectorAll('.emoji-option').forEach(btn => {
+                btn.classList.toggle('selected', btn.dataset.emoji === selectedEmoji);
+            });
+            document.getElementById('itemModal').classList.add('active');
+        }
+
+        function closeItemModal() {
+            document.getElementById('itemModal').classList.remove('active');
+        }
+
+        async function submitItem() {
+            const name = document.getElementById('itemName').value.trim();
+            const price = parseInt(document.getElementById('itemPrice').value);
+            const category = document.getElementById('itemCategory').value;
+            const editItemId = document.getElementById('editItemId').value;
+
+            if (!name) {
+                showToast('Please enter an item name', 'error');
+                return;
+            }
+            if (!price || price <= 0) {
+                showToast('Please enter a valid price', 'error');
+                return;
+            }
+            if (!category) {
+                showToast('Please select a category', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('itemSubmitBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Saving...';
+
+            try {
+                let url, method, body;
+
+                if (editItemId) {
+                    // Edit mode
+                    url = '/api/admin/menu/edit';
+                    method = 'PUT';
+                    body = { itemId: editItemId, name, price, category, emoji: selectedEmoji };
+                } else {
+                    // Add mode
+                    url = '/api/admin/menu/add';
+                    method = 'POST';
+                    body = { name, price, category, emoji: selectedEmoji };
+                }
+
+                const response = await fetch(url, {
+                    method,
+                    headers: authHeaders(),
+                    body: JSON.stringify(body)
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast(data.message);
+                    closeItemModal();
+                    await fetchMenu();
+                } else {
+                    showToast(data.error || 'Failed to save item', 'error');
+                }
+            } catch (error) {
+                console.error('Error saving item:', error);
+                showToast('Connection error. Please try again.', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = editItemId ? '💾 Save Changes' : '➕ Add to Menu';
+            }
+        }
+
+        async function deleteItem(itemId, itemName) {
+            if (!confirm(`Are you sure you want to delete "${itemName}"? This cannot be undone.`)) return;
+
+            try {
+                const response = await fetch('/api/admin/menu/delete', {
+                    method: 'DELETE',
+                    headers: authHeaders(),
+                    body: JSON.stringify({ itemId })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast(data.message);
+                    await fetchMenu();
+                } else {
+                    showToast(data.error || 'Failed to delete item', 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting item:', error);
+                showToast('Connection error. Please try again.', 'error');
+            }
+        }
+
+        // ============================================
         // Rendering
         // ============================================
         function updateStats() {
@@ -460,7 +652,15 @@
                         <span class="menu-manage-emoji">${item.emoji}</span>
                         <div class="menu-manage-info">
                             <span class="menu-manage-name">${item.name}</span>
-                            <span class="menu-manage-price">₹${item.price}</span>
+                            <span class="menu-manage-price">₹${item.price} · ${item.category || 'Uncategorized'}</span>
+                        </div>
+                        <div class="menu-manage-actions">
+                            <button class="icon-btn edit-item-btn" data-item-id="${item.id}" title="Edit">
+                                ✏️
+                            </button>
+                            <button class="icon-btn delete-item-btn" data-item-id="${item.id}" data-item-name="${item.name}" title="Delete">
+                                🗑️
+                            </button>
                         </div>
                     </div>
                     <div class="menu-manage-footer">
@@ -529,9 +729,10 @@
             }
 
             if (orderId) {
+                orderId = orderId.trim().toLowerCase();
                 stopScanner();
-                if (confirm(`Order found: #${orderId}. Mark as collected?`)) {
-                    await markAsCollected(orderId.trim());
+                if (confirm(`Order found: #${orderId.toUpperCase()}. Mark as collected?`)) {
+                    await markAsCollected(orderId);
                 }
             } else {
                 showToast("Invalid QR Code format", 'error');
@@ -635,6 +836,34 @@
 
             document.getElementById('bulkUnavailableBtn').addEventListener('click', () => {
                 if (confirm('Mark ALL items as unavailable?')) bulkToggle(false);
+            });
+
+            // Add Item button
+            document.getElementById('addItemBtn').addEventListener('click', openAddItemModal);
+            document.getElementById('closeItemModal').addEventListener('click', closeItemModal);
+            document.getElementById('itemSubmitBtn').addEventListener('click', submitItem);
+
+            // Emoji picker
+            document.getElementById('emojiPicker').addEventListener('click', (e) => {
+                const btn = e.target.closest('.emoji-option');
+                if (btn) {
+                    selectedEmoji = btn.dataset.emoji;
+                    document.querySelectorAll('.emoji-option').forEach(b => b.classList.remove('selected'));
+                    btn.classList.add('selected');
+                }
+            });
+
+            // Edit & Delete buttons (event delegation)
+            document.getElementById('adminMenuGrid').addEventListener('click', (e) => {
+                const editBtn = e.target.closest('.edit-item-btn');
+                const deleteBtn = e.target.closest('.delete-item-btn');
+
+                if (editBtn) {
+                    openEditItemModal(editBtn.dataset.itemId);
+                }
+                if (deleteBtn) {
+                    deleteItem(deleteBtn.dataset.itemId, deleteBtn.dataset.itemName);
+                }
             });
         }
     </script>
@@ -1108,6 +1337,186 @@
             .menu-manage-card {
                 padding: var(--space-md);
             }
+        }
+
+        /* Add Item Button */
+        .bulk-add {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+        }
+
+        .bulk-add:hover {
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+        }
+
+        /* Item Modal */
+        .item-modal {
+            background: white;
+            border-radius: var(--radius-xl);
+            width: 100%;
+            max-width: 480px;
+            overflow: hidden;
+            box-shadow: var(--shadow-2xl);
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                transform: translateY(30px) scale(0.95);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+            }
+        }
+
+        .item-modal-body {
+            padding: var(--space-lg);
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-md);
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-xs);
+        }
+
+        .form-group label {
+            font-size: 0.8125rem;
+            font-weight: 700;
+            color: var(--gray-700);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-group input,
+        .form-group select {
+            padding: var(--space-sm) var(--space-md);
+            font-size: 1rem;
+            font-family: inherit;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            color: var(--gray-900);
+            background: white;
+            transition: all var(--transition-fast);
+            outline: none;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            border-color: var(--primary-500);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+
+        .form-group input::placeholder {
+            color: var(--gray-400);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-md);
+        }
+
+        /* Emoji Picker */
+        .emoji-picker {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .emoji-option {
+            width: 42px;
+            height: 42px;
+            font-size: 1.3rem;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            background: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-fast);
+        }
+
+        .emoji-option:hover {
+            border-color: var(--primary-300);
+            background: var(--primary-50, #eef2ff);
+            transform: scale(1.1);
+        }
+
+        .emoji-option.selected {
+            border-color: var(--primary-500);
+            background: var(--primary-50, #eef2ff);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+            transform: scale(1.1);
+        }
+
+        .item-submit-btn {
+            padding: var(--space-md) var(--space-lg);
+            font-size: 1rem;
+            font-weight: 700;
+            font-family: inherit;
+            border: none;
+            border-radius: var(--radius-lg);
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            margin-top: var(--space-sm);
+        }
+
+        .item-submit-btn:hover {
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+        }
+
+        .item-submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Edit/Delete icon buttons */
+        .menu-manage-actions {
+            display: flex;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        .icon-btn {
+            width: 34px;
+            height: 34px;
+            border: none;
+            border-radius: var(--radius-md);
+            background: var(--gray-100);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            transition: all var(--transition-fast);
+        }
+
+        .icon-btn:hover {
+            background: var(--gray-200);
+            transform: scale(1.1);
+        }
+
+        .delete-item-btn:hover {
+            background: #fee2e2;
+        }
+
+        .edit-item-btn:hover {
+            background: #e0e7ff;
         }
     </style>
 </body>

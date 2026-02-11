@@ -430,6 +430,125 @@ app.post('/api/admin/menu/refresh', requireAdmin, async (req, res) => {
     }
 });
 
+// Add new menu item
+app.post('/api/admin/menu/add', requireAdmin, async (req, res) => {
+    const { name, price, category, emoji } = req.body;
+    const canteenId = req.adminSession.canteenId;
+    const canteen = canteenMenus[canteenId];
+
+    if (!canteen) {
+        return res.status(404).json({ success: false, error: 'Canteen not found' });
+    }
+
+    if (!name || !price || !category) {
+        return res.status(400).json({ success: false, error: 'Name, price, and category are required' });
+    }
+
+    if (typeof price !== 'number' || price <= 0) {
+        return res.status(400).json({ success: false, error: 'Price must be a positive number' });
+    }
+
+    // Generate a unique ID from the name
+    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+    // Check for duplicate ID
+    if (canteen.items.find(item => item.id === id)) {
+        return res.status(400).json({ success: false, error: `An item with a similar name already exists` });
+    }
+
+    const newItem = {
+        id,
+        name: name.trim(),
+        price: Math.round(price),
+        category: category.trim(),
+        emoji: emoji || '🍽️',
+        available: true
+    };
+
+    canteen.items.push(newItem);
+    menuVersionCounter++;
+    await saveMenu();
+
+    console.log(`➕ [${canteen.name}] New item added: "${newItem.name}" - ₹${newItem.price}`);
+
+    res.status(201).json({
+        success: true,
+        item: newItem,
+        menuVersion: menuVersionCounter,
+        message: `"${newItem.name}" has been added to the menu`
+    });
+});
+
+// Edit existing menu item
+app.put('/api/admin/menu/edit', requireAdmin, async (req, res) => {
+    const { itemId, name, price, category, emoji } = req.body;
+    const canteenId = req.adminSession.canteenId;
+    const canteen = canteenMenus[canteenId];
+
+    if (!canteen) {
+        return res.status(404).json({ success: false, error: 'Canteen not found' });
+    }
+
+    if (!itemId) {
+        return res.status(400).json({ success: false, error: 'Item ID is required' });
+    }
+
+    const item = canteen.items.find(i => i.id === itemId);
+    if (!item) {
+        return res.status(404).json({ success: false, error: 'Menu item not found' });
+    }
+
+    if (name) item.name = name.trim();
+    if (price !== undefined && typeof price === 'number' && price > 0) item.price = Math.round(price);
+    if (category) item.category = category.trim();
+    if (emoji) item.emoji = emoji;
+
+    menuVersionCounter++;
+    await saveMenu();
+
+    console.log(`✏️ [${canteen.name}] Item edited: "${item.name}" - ₹${item.price}`);
+
+    res.json({
+        success: true,
+        item,
+        menuVersion: menuVersionCounter,
+        message: `"${item.name}" has been updated`
+    });
+});
+
+// Delete menu item
+app.delete('/api/admin/menu/delete', requireAdmin, async (req, res) => {
+    const { itemId } = req.body;
+    const canteenId = req.adminSession.canteenId;
+    const canteen = canteenMenus[canteenId];
+
+    if (!canteen) {
+        return res.status(404).json({ success: false, error: 'Canteen not found' });
+    }
+
+    if (!itemId) {
+        return res.status(400).json({ success: false, error: 'Item ID is required' });
+    }
+
+    const itemIndex = canteen.items.findIndex(i => i.id === itemId);
+    if (itemIndex === -1) {
+        return res.status(404).json({ success: false, error: 'Menu item not found' });
+    }
+
+    const removedItem = canteen.items.splice(itemIndex, 1)[0];
+    menuVersionCounter++;
+    await saveMenu();
+
+    console.log(`🗑️ [${canteen.name}] Item deleted: "${removedItem.name}"`);
+
+    res.json({
+        success: true,
+        removedItem,
+        menuVersion: menuVersionCounter,
+        message: `"${removedItem.name}" has been removed from the menu`
+    });
+});
+
 // ============================================
 // API: Orders (per canteen)
 // ============================================
@@ -499,7 +618,7 @@ app.post('/api/order/create', (req, res) => {
 });
 
 app.get('/api/order/:order_id', (req, res) => {
-    const order = orders.get(req.params.order_id);
+    const order = orders.get(req.params.order_id.toLowerCase());
     if (!order) {
         return res.status(404).json({ success: false, error: 'Order not found' });
     }
@@ -522,7 +641,7 @@ app.post('/api/admin/order/collect', requireAdmin, (req, res) => {
         return res.status(400).json({ success: false, error: 'Order ID is required' });
     }
 
-    const order = orders.get(order_id);
+    const order = orders.get(order_id.toLowerCase());
     if (!order) {
         return res.status(404).json({ success: false, error: 'Order not found' });
     }
@@ -550,7 +669,7 @@ app.post('/api/payment/initiate', (req, res) => {
         return res.status(400).json({ success: false, error: 'Order ID is required' });
     }
 
-    const order = orders.get(order_id);
+    const order = orders.get(order_id.toLowerCase());
     if (!order) {
         return res.status(404).json({ success: false, error: 'Order not found' });
     }
@@ -602,7 +721,7 @@ app.post('/api/payment/verify', (req, res) => {
         return res.status(400).json({ success: false, error: 'Payment verification failed' });
     }
 
-    const order = orders.get(order_id);
+    const order = orders.get(order_id.toLowerCase());
     if (!order) {
         return res.status(404).json({ success: false, error: 'Order not found' });
     }
