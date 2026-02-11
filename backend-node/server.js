@@ -211,6 +211,7 @@ app.post('/api/login', async (req, res) => {
             .single();
 
         if (error || !student) {
+            console.log(`❌ Login Failed: Student "${registerNumber}" not found in Supabase. Error: ${error?.message || 'No record'}`);
             return res.status(401).json({
                 success: false,
                 message: "Canteen can be accessed during your lunch break"
@@ -219,6 +220,7 @@ app.post('/api/login', async (req, res) => {
 
         const passwordMatch = await bcrypt.compare(password, student.password_hash);
         if (!passwordMatch) {
+            console.log(`❌ Login Failed: Wrong password for "${registerNumber}"`);
             return res.status(401).json({
                 success: false,
                 message: "Canteen can be accessed during your lunch break"
@@ -226,6 +228,7 @@ app.post('/api/login', async (req, res) => {
         }
 
         if (student.canteen_access !== true) {
+            console.log(`❌ Login Failed: Access denied for "${registerNumber}" (canteen_access=${student.canteen_access})`);
             return res.status(403).json({
                 success: false,
                 message: "Canteen can be accessed during your lunch break"
@@ -240,7 +243,7 @@ app.post('/api/login', async (req, res) => {
         });
 
     } catch (err) {
-        console.error('Login Error:', err);
+        console.error('❌ Login Error (exception):', err.message);
         res.status(500).json({
             success: false,
             message: "Internal Server Error"
