@@ -20,8 +20,13 @@
             <div class="header-logo">
                 <span class="header-title">Sathyabama Canteen</span>
             </div>
-            <div class="user-info" id="userInfo" style="cursor:pointer;" title="Click to logout">
-                <span id="userDisplay">Loading...</span>
+            <div style="display:flex; align-items:center; gap:var(--space-sm);">
+                <a href="/dashboard" class="my-orders-link" title="My Orders">
+                    📋 My Orders
+                </a>
+                <div class="user-info" id="userInfo" style="cursor:pointer;" title="Click to logout">
+                    <span id="userDisplay">Loading...</span>
+                </div>
             </div>
         </div>
     </header>
@@ -107,6 +112,26 @@
         .canteen-select-page {
             background: var(--gray-50);
             min-height: 100vh;
+        }
+
+        .my-orders-link {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: var(--space-sm) var(--space-md);
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: var(--radius-full);
+            font-size: 0.8125rem;
+            font-weight: 600;
+            color: white;
+            text-decoration: none;
+            backdrop-filter: blur(10px);
+            transition: all var(--transition-fast);
+            white-space: nowrap;
+        }
+
+        .my-orders-link:hover {
+            background: rgba(255, 255, 255, 0.25);
         }
 
         .canteen-select-main {

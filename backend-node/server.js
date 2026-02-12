@@ -190,6 +190,10 @@ app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/admin.html'));
 });
 
+app.get('/dashboard', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/dashboard.html'));
+});
+
 // ============================================
 // API: Student Authentication
 // ============================================
@@ -636,6 +640,15 @@ app.get('/api/order/:order_id', (req, res) => {
         return res.status(404).json({ success: false, error: 'Order not found' });
     }
     res.json({ success: true, order });
+});
+
+// Student: Get all orders for a specific student
+app.get('/api/orders/student/:student_id', (req, res) => {
+    const studentId = req.params.student_id.toUpperCase();
+    const studentOrders = Array.from(orders.values())
+        .filter(o => (o.student_id || '').toUpperCase() === studentId)
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    res.json({ success: true, orders: studentOrders });
 });
 
 // Admin: Get orders for their canteen

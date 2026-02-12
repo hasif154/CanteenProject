@@ -3,7 +3,7 @@
         "advanced-canteen": {
             "name": "Advance Block Canteen",
             "menuVersion": "1.0.0",
-            "lastUpdated": "2026-02-11",
+            "lastUpdated": "2026-02-12",
             "items": [
                 {
                     "id": "kothu-parota",
@@ -19,7 +19,7 @@
                     "price": 15,
                     "category": "Main Course",
                     "emoji": "🫓",
-                    "available": false
+                    "available": true
                 },
                 {
                     "id": "biryani",
@@ -114,7 +114,7 @@
         "main-canteen": {
             "name": "Main Canteen",
             "menuVersion": "1.0.0",
-            "lastUpdated": "2026-02-11",
+            "lastUpdated": "2026-02-12",
             "items": [
                 {
                     "id": "kothu-parota",
