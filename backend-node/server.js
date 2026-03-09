@@ -12,7 +12,37 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcrypt');
+const multer = require('multer');
 const supabase = require('./supabaseClient');
+
+// ============================================
+// Multer Configuration (Image Uploads)
+// ============================================
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+    filename: (req, file, cb) => {
+        const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname).toLowerCase();
+        cb(null, uniqueName + ext);
+    }
+});
+
+const upload = multer({
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+    fileFilter: (req, file, cb) => {
+        const allowed = /jpeg|jpg|png|gif|webp/;
+        const extOk = allowed.test(path.extname(file.originalname).toLowerCase());
+        const mimeOk = allowed.test(file.mimetype);
+        if (extOk && mimeOk) cb(null, true);
+        else cb(new Error('Only image files (jpg, png, gif, webp) are allowed'));
+    }
+});
 
 const app = express();
 const PORT = 8080;
@@ -22,10 +52,10 @@ const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 
 // ============================================
-// Admin Credentials (hardcoded as requested)
+// Admin Credentials (from .env)
 // ============================================
-const ADMIN_USERNAME = 'admin';
-const ADMIN_PASSWORD = 'admin';
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 // ============================================
 // Menu Data - Load from JSON file (Async)
@@ -145,6 +175,8 @@ const orders = new Map(); // orderId -> order (includes canteen_id)
 app.use(cors());
 app.use(express.json());
 app.use('/static', express.static(path.join(__dirname, '../frontend')));
+app.use('/js', express.static(path.join(__dirname, '../frontend/js')));
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 // ============================================
 // Helper Functions
@@ -207,13 +239,16 @@ app.post('/api/login', async (req, res) => {
         });
     }
 
-    // Hardcoded bypass for test student
-    if (registerNumber === '43613006' && password === '1234') {
-        console.log(`✅ Login Success (bypass): Mohit (43613006)`);
+    // Test student bypass (configured via .env — remove in production)
+    const testReg = process.env.TEST_STUDENT_REG;
+    const testPass = process.env.TEST_STUDENT_PASS;
+    const testName = process.env.TEST_STUDENT_NAME;
+    if (testReg && testPass && registerNumber === testReg && password === testPass) {
+        console.log(`✅ Login Success (bypass): ${testName} (${testReg})`);
         return res.json({
             success: true,
-            registerNumber: '43613006',
-            name: 'Mohit'
+            registerNumber: testReg,
+            name: testName || 'Test Student'
         });
     }
 
@@ -449,7 +484,7 @@ app.post('/api/admin/menu/refresh', requireAdmin, async (req, res) => {
 
 // Add new menu item
 app.post('/api/admin/menu/add', requireAdmin, async (req, res) => {
-    const { name, price, category, emoji } = req.body;
+    const { name, price, category, emoji, isVeg } = req.body;
     const canteenId = req.adminSession.canteenId;
     const canteen = canteenMenus[canteenId];
 
@@ -468,9 +503,13 @@ app.post('/api/admin/menu/add', requireAdmin, async (req, res) => {
     // Generate a unique ID from the name
     const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
-    // Check for duplicate ID
+    // Check for duplicate ID or duplicate name (case-insensitive)
     if (canteen.items.find(item => item.id === id)) {
         return res.status(400).json({ success: false, error: `An item with a similar name already exists` });
+    }
+    const nameLower = name.trim().toLowerCase();
+    if (canteen.items.find(item => item.name.toLowerCase() === nameLower)) {
+        return res.status(400).json({ success: false, error: `"${name.trim()}" already exists in the menu` });
     }
 
     const newItem = {
@@ -478,7 +517,9 @@ app.post('/api/admin/menu/add', requireAdmin, async (req, res) => {
         name: name.trim(),
         price: Math.round(price),
         category: category.trim(),
-        emoji: emoji || '🍽️',
+        emoji: emoji || null,
+        isVeg: isVeg !== undefined ? isVeg : true,
+        image: null,
         available: true
     };
 
@@ -498,7 +539,7 @@ app.post('/api/admin/menu/add', requireAdmin, async (req, res) => {
 
 // Edit existing menu item
 app.put('/api/admin/menu/edit', requireAdmin, async (req, res) => {
-    const { itemId, name, price, category, emoji } = req.body;
+    const { itemId, name, price, category, emoji, isVeg } = req.body;
     const canteenId = req.adminSession.canteenId;
     const canteen = canteenMenus[canteenId];
 
@@ -519,6 +560,7 @@ app.put('/api/admin/menu/edit', requireAdmin, async (req, res) => {
     if (price !== undefined && typeof price === 'number' && price > 0) item.price = Math.round(price);
     if (category) item.category = category.trim();
     if (emoji) item.emoji = emoji;
+    if (isVeg !== undefined) item.isVeg = isVeg;
 
     menuVersionCounter++;
     await saveMenu();
@@ -530,6 +572,49 @@ app.put('/api/admin/menu/edit', requireAdmin, async (req, res) => {
         item,
         menuVersion: menuVersionCounter,
         message: `"${item.name}" has been updated`
+    });
+});
+
+// Upload image for a menu item
+app.post('/api/admin/menu/upload-image', requireAdmin, upload.single('image'), async (req, res) => {
+    const { itemId } = req.body;
+    const canteenId = req.adminSession.canteenId;
+    const canteen = canteenMenus[canteenId];
+
+    if (!canteen) {
+        return res.status(404).json({ success: false, error: 'Canteen not found' });
+    }
+
+    if (!itemId) {
+        return res.status(400).json({ success: false, error: 'Item ID is required' });
+    }
+
+    if (!req.file) {
+        return res.status(400).json({ success: false, error: 'No image file uploaded' });
+    }
+
+    const item = canteen.items.find(i => i.id === itemId);
+    if (!item) {
+        return res.status(404).json({ success: false, error: 'Menu item not found' });
+    }
+
+    // Delete old image if exists
+    if (item.image) {
+        const oldPath = path.join(UPLOADS_DIR, path.basename(item.image));
+        try { fs.unlinkSync(oldPath); } catch { }
+    }
+
+    item.image = '/uploads/' + req.file.filename;
+    menuVersionCounter++;
+    await saveMenu();
+
+    console.log(`📸 [${canteen.name}] Image uploaded for "${item.name}": ${item.image}`);
+
+    res.json({
+        success: true,
+        item,
+        menuVersion: menuVersionCounter,
+        message: `Image uploaded for "${item.name}"`
     });
 });
 
@@ -624,6 +709,7 @@ app.post('/api/order/create', (req, res) => {
         items: orderItems,
         total_amount: totalAmount,
         order_status: 'PLACED',
+        payment_status: 'PENDING',
         created_at: new Date().toISOString()
     };
 
@@ -646,7 +732,7 @@ app.get('/api/order/:order_id', (req, res) => {
 app.get('/api/orders/student/:student_id', (req, res) => {
     const studentId = req.params.student_id.toUpperCase();
     const studentOrders = Array.from(orders.values())
-        .filter(o => (o.student_id || '').toUpperCase() === studentId)
+        .filter(o => (o.student_id || '').toUpperCase() === studentId && o.payment_status === 'PAID')
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     res.json({ success: true, orders: studentOrders });
 });
@@ -654,7 +740,8 @@ app.get('/api/orders/student/:student_id', (req, res) => {
 // Admin: Get orders for their canteen
 app.get('/api/admin/orders', requireAdmin, (req, res) => {
     const canteenId = req.adminSession.canteenId;
-    const ordersList = Array.from(orders.values()).filter(o => o.canteen_id === canteenId);
+    // Only show orders that have been paid — hide pending/unpaid orders from admin
+    const ordersList = Array.from(orders.values()).filter(o => o.canteen_id === canteenId && o.payment_status === 'PAID');
     res.json({ success: true, orders: ordersList });
 });
 
@@ -683,6 +770,32 @@ app.post('/api/admin/order/collect', requireAdmin, (req, res) => {
     console.log(`✅ [${order.canteen_name}] Order Collected: #${order_id.toUpperCase()} - ${order.student_name}`);
 
     res.json({ success: true, order, message: 'Order marked as collected' });
+});
+
+// ============================================
+// API: Cancel Pending Order (payment dismissed)
+// ============================================
+app.post('/api/order/cancel', (req, res) => {
+    const { order_id } = req.body;
+
+    if (!order_id) {
+        return res.status(400).json({ success: false, error: 'Order ID is required' });
+    }
+
+    const order = orders.get(order_id.toLowerCase());
+    if (!order) {
+        return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    // Only allow cancelling orders that haven't been paid
+    if (order.payment_status === 'PAID') {
+        return res.status(400).json({ success: false, error: 'Cannot cancel a paid order' });
+    }
+
+    orders.delete(order_id.toLowerCase());
+    console.log(`❌ [${order.canteen_name}] Order Cancelled: #${order_id.toUpperCase()} - ${order.student_name} (payment dismissed)`);
+
+    res.json({ success: true, message: 'Order cancelled successfully' });
 });
 
 // ============================================

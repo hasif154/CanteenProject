@@ -3,30 +3,15 @@
         "advanced-canteen": {
             "name": "Advance Block Canteen",
             "menuVersion": "1.0.0",
-            "lastUpdated": "2026-02-12",
+            "lastUpdated": "2026-03-09",
             "items": [
-                {
-                    "id": "kothu-parota",
-                    "name": "Kothu Parota",
-                    "price": 60,
-                    "category": "Main Course",
-                    "emoji": "🍛",
-                    "available": true
-                },
-                {
-                    "id": "chapati",
-                    "name": "Chapati",
-                    "price": 15,
-                    "category": "Main Course",
-                    "emoji": "🫓",
-                    "available": true
-                },
                 {
                     "id": "biryani",
                     "name": "Biryani",
                     "price": 80,
                     "category": "Main Course",
                     "emoji": "🍚",
+                    "isVeg": false,
                     "available": true
                 },
                 {
@@ -35,6 +20,7 @@
                     "price": 50,
                     "category": "Main Course",
                     "emoji": "🍚",
+                    "isVeg": true,
                     "available": true
                 },
                 {
@@ -43,6 +29,7 @@
                     "price": 45,
                     "category": "Main Course",
                     "emoji": "🍜",
+                    "isVeg": true,
                     "available": true
                 },
                 {
@@ -51,6 +38,7 @@
                     "price": 35,
                     "category": "Snacks",
                     "emoji": "🥪",
+                    "isVeg": true,
                     "available": true
                 },
                 {
@@ -59,6 +47,7 @@
                     "price": 50,
                     "category": "Snacks",
                     "emoji": "🍔",
+                    "isVeg": false,
                     "available": true
                 },
                 {
@@ -67,6 +56,7 @@
                     "price": 45,
                     "category": "Snacks",
                     "emoji": "🌯",
+                    "isVeg": true,
                     "available": true
                 },
                 {
@@ -75,6 +65,7 @@
                     "price": 30,
                     "category": "Chaat",
                     "emoji": "🥟",
+                    "isVeg": true,
                     "available": true
                 },
                 {
@@ -83,6 +74,7 @@
                     "price": 15,
                     "category": "Snacks",
                     "emoji": "🥟",
+                    "isVeg": true,
                     "available": true
                 },
                 {
@@ -91,6 +83,7 @@
                     "price": 35,
                     "category": "Chaat",
                     "emoji": "🍲",
+                    "isVeg": true,
                     "available": true
                 },
                 {
@@ -99,6 +92,7 @@
                     "price": 80,
                     "category": "Snacks",
                     "emoji": "🍕",
+                    "isVeg": true,
                     "available": true
                 },
                 {
@@ -107,6 +101,37 @@
                     "price": 25,
                     "category": "Desserts",
                     "emoji": "🍦",
+                    "isVeg": true,
+                    "available": true
+                },
+                {
+                    "id": "choclate",
+                    "name": "choclate",
+                    "price": 40,
+                    "category": "Snacks",
+                    "emoji": "🍩",
+                    "isVeg": true,
+                    "image": "/uploads/1773071014593-687540114.png",
+                    "available": true
+                },
+                {
+                    "id": "thumsup",
+                    "name": "thumsup",
+                    "price": 20,
+                    "category": "Beverages",
+                    "emoji": "🍽️",
+                    "isVeg": true,
+                    "image": null,
+                    "available": true
+                },
+                {
+                    "id": "chapati",
+                    "name": "chapati",
+                    "price": 30,
+                    "category": "North Indian",
+                    "emoji": null,
+                    "isVeg": true,
+                    "image": null,
                     "available": true
                 }
             ]
@@ -114,7 +139,7 @@
         "main-canteen": {
             "name": "Main Canteen",
             "menuVersion": "1.0.0",
-            "lastUpdated": "2026-02-12",
+            "lastUpdated": "2026-03-09",
             "items": [
                 {
                     "id": "kothu-parota",
@@ -122,6 +147,7 @@
                     "price": 60,
                     "category": "Main Course",
                     "emoji": "🍛",
+                    "isVeg": false,
                     "available": true
                 },
                 {
@@ -130,6 +156,7 @@
                     "price": 15,
                     "category": "Main Course",
                     "emoji": "🫓",
+                    "isVeg": true,
                     "available": true
                 },
                 {
@@ -138,6 +165,7 @@
                     "price": 80,
                     "category": "Main Course",
                     "emoji": "🍚",
+                    "isVeg": false,
                     "available": true
                 },
                 {
@@ -146,6 +174,7 @@
                     "price": 50,
                     "category": "Main Course",
                     "emoji": "🍚",
+                    "isVeg": true,
                     "available": true
                 },
                 {
@@ -154,6 +183,7 @@
                     "price": 45,
                     "category": "Main Course",
                     "emoji": "🍜",
+                    "isVeg": true,
                     "available": true
                 },
                 {
@@ -162,6 +192,7 @@
                     "price": 35,
                     "category": "Snacks",
                     "emoji": "🥪",
+                    "isVeg": true,
                     "available": true
                 },
                 {
@@ -170,6 +201,7 @@
                     "price": 50,
                     "category": "Snacks",
                     "emoji": "🍔",
+                    "isVeg": false,
                     "available": true
                 },
                 {
@@ -178,6 +210,7 @@
                     "price": 45,
                     "category": "Snacks",
                     "emoji": "🌯",
+                    "isVeg": true,
                     "available": true
                 },
                 {
@@ -186,6 +219,7 @@
                     "price": 30,
                     "category": "Chaat",
                     "emoji": "🥟",
+                    "isVeg": true,
                     "available": true
                 },
                 {
@@ -194,6 +228,7 @@
                     "price": 15,
                     "category": "Snacks",
                     "emoji": "🥟",
+                    "isVeg": true,
                     "available": true
                 },
                 {
@@ -202,6 +237,7 @@
                     "price": 35,
                     "category": "Chaat",
                     "emoji": "🍲",
+                    "isVeg": true,
                     "available": true
                 },
                 {
@@ -210,6 +246,7 @@
                     "price": 80,
                     "category": "Snacks",
                     "emoji": "🍕",
+                    "isVeg": true,
                     "available": true
                 },
                 {
@@ -218,6 +255,7 @@
                     "price": 25,
                     "category": "Desserts",
                     "emoji": "🍦",
+                    "isVeg": true,
                     "available": true
                 }
             ]

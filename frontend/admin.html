@@ -109,6 +109,14 @@
             <span class="status-dot unavailable"></span>
             <span id="unavailableCount">0</span> Unavailable
         </div>
+        <!-- Admin Menu Search Bar -->
+        <div class="admin-search-bar">
+            <div class="search-container">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="adminMenuSearch" placeholder="Search menu items..." autocomplete="off">
+                <button class="search-clear hidden" id="adminSearchClear">✕</button>
+            </div>
+        </div>
         <div class="admin-menu-grid" id="adminMenuGrid">
             <div class="loading">
                 <div class="spinner"></div>
@@ -162,29 +170,37 @@
                         </select>
                     </div>
                 </div>
+                <!-- Veg / Non-Veg Selector -->
                 <div class="form-group">
-                    <label>Select Emoji</label>
-                    <div class="emoji-picker" id="emojiPicker">
-                        <button type="button" class="emoji-option selected" data-emoji="🍽️">🍽️</button>
-                        <button type="button" class="emoji-option" data-emoji="🍛">🍛</button>
-                        <button type="button" class="emoji-option" data-emoji="🍚">🍚</button>
-                        <button type="button" class="emoji-option" data-emoji="🍜">🍜</button>
-                        <button type="button" class="emoji-option" data-emoji="🫓">🫓</button>
-                        <button type="button" class="emoji-option" data-emoji="🥪">🥪</button>
-                        <button type="button" class="emoji-option" data-emoji="🍔">🍔</button>
-                        <button type="button" class="emoji-option" data-emoji="🌯">🌯</button>
-                        <button type="button" class="emoji-option" data-emoji="🍕">🍕</button>
-                        <button type="button" class="emoji-option" data-emoji="🥟">🥟</button>
-                        <button type="button" class="emoji-option" data-emoji="🍲">🍲</button>
-                        <button type="button" class="emoji-option" data-emoji="🍦">🍦</button>
-                        <button type="button" class="emoji-option" data-emoji="☕">☕</button>
-                        <button type="button" class="emoji-option" data-emoji="🥤">🥤</button>
-                        <button type="button" class="emoji-option" data-emoji="🧃">🧃</button>
-                        <button type="button" class="emoji-option" data-emoji="🍰">🍰</button>
-                        <button type="button" class="emoji-option" data-emoji="🍩">🍩</button>
-                        <button type="button" class="emoji-option" data-emoji="🥗">🥗</button>
-                        <button type="button" class="emoji-option" data-emoji="🍗">🍗</button>
-                        <button type="button" class="emoji-option" data-emoji="🥘">🥘</button>
+                    <label>Food Type *</label>
+                    <div class="food-type-selector">
+                        <label class="food-type-option veg-option">
+                            <input type="radio" name="foodType" value="veg" id="foodTypeVeg" checked>
+                            <span class="food-type-indicator veg-indicator"></span>
+                            <span>Veg</span>
+                        </label>
+                        <label class="food-type-option nonveg-option">
+                            <input type="radio" name="foodType" value="nonveg" id="foodTypeNonVeg">
+                            <span class="food-type-indicator nonveg-indicator"></span>
+                            <span>Non-Veg</span>
+                        </label>
+                    </div>
+                </div>
+                <!-- Image Upload -->
+                <div class="form-group">
+                    <label>Item Image</label>
+                    <div class="image-upload-area" id="imageUploadArea">
+                        <div class="image-preview-container" id="imagePreviewContainer" style="display:none;">
+                            <img id="imagePreview" src="" alt="Preview">
+                            <button type="button" class="remove-image-btn" id="removeImageBtn">✕</button>
+                        </div>
+                        <div class="image-upload-placeholder" id="imageUploadPlaceholder">
+                            <span class="upload-icon">📷</span>
+                            <span>Click to upload image</span>
+                            <span class="upload-hint">JPG, PNG, WebP • Max 5MB</span>
+                        </div>
+                        <input type="file" id="itemImage" accept="image/jpeg,image/png,image/gif,image/webp"
+                            style="display:none;">
                     </div>
                 </div>
                 <input type="hidden" id="editItemId" value="">
@@ -196,677 +212,7 @@
     <!-- Toast Notification -->
     <div class="toast-container" id="toastContainer"></div>
 
-    <script>
-        // ============================================
-        // State
-        // ============================================
-        let allOrders = [];
-        let menuItems = [];
-        let currentFilter = 'all';
-        let currentTab = 'orders';
-        let adminToken = '';
-        let canteenId = '';
-        let canteenName = '';
-
-        // ============================================
-        // Authentication Check
-        // ============================================
-        function getAdminAuth() {
-            adminToken = localStorage.getItem('adminToken');
-            canteenId = localStorage.getItem('adminCanteenId');
-            canteenName = localStorage.getItem('adminCanteenName');
-
-            if (!adminToken || !canteenId) {
-                window.location.href = '/admin-login';
-                return false;
-            }
-            return true;
-        }
-
-        function authHeaders() {
-            return { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken };
-        }
-
-        async function verifySession() {
-            try {
-                const response = await fetch('/api/admin/check-session', {
-                    headers: { 'X-Admin-Token': adminToken }
-                });
-                const data = await response.json();
-                if (!data.success) {
-                    showToast('Session expired. Redirecting to login...', 'error');
-                    setTimeout(() => {
-                        localStorage.removeItem('adminToken');
-                        localStorage.removeItem('adminCanteenId');
-                        localStorage.removeItem('adminCanteenName');
-                        window.location.href = '/admin-login';
-                    }, 1500);
-                    return false;
-                }
-                canteenName = data.canteenName;
-                return true;
-            } catch {
-                return false;
-            }
-        }
-
-        // ============================================
-        // Initialization
-        // ============================================
-        document.addEventListener('DOMContentLoaded', async () => {
-            if (!getAdminAuth()) return;
-
-            const valid = await verifySession();
-            if (!valid) return;
-
-            document.getElementById('canteenTitle').textContent = canteenName;
-            document.title = `Admin - ${canteenName}`;
-
-            fetchOrders();
-            fetchMenu();
-            setupEventListeners();
-
-            // Auto-refresh every 15 seconds
-            setInterval(() => {
-                if (currentTab === 'orders') fetchOrders();
-                if (currentTab === 'menu') fetchMenu();
-            }, 15000);
-        });
-
-        // ============================================
-        // Toast Notifications
-        // ============================================
-        function showToast(message, type = 'success') {
-            const container = document.getElementById('toastContainer');
-            const toast = document.createElement('div');
-            toast.className = `toast toast-${type}`;
-            toast.innerHTML = `
-                <span class="toast-icon">${type === 'success' ? '✅' : type === 'error' ? '❌' : '⚠️'}</span>
-                <span class="toast-text">${message}</span>
-            `;
-            container.appendChild(toast);
-
-            setTimeout(() => toast.classList.add('show'), 50);
-            setTimeout(() => {
-                toast.classList.remove('show');
-                setTimeout(() => toast.remove(), 300);
-            }, 3000);
-        }
-
-        // ============================================
-        // API Functions
-        // ============================================
-        async function fetchOrders() {
-            try {
-                const response = await fetch('/api/admin/orders', {
-                    headers: { 'X-Admin-Token': adminToken }
-                });
-                const data = await response.json();
-
-                if (data.success) {
-                    allOrders = data.orders || [];
-                    allOrders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-                    updateStats();
-                    renderOrders();
-                } else if (response.status === 401) {
-                    window.location.href = '/admin-login';
-                }
-            } catch (error) {
-                console.error('Error fetching orders:', error);
-            }
-        }
-
-        async function fetchMenu() {
-            try {
-                const response = await fetch('/api/admin/menu', {
-                    headers: { 'X-Admin-Token': adminToken }
-                });
-                const data = await response.json();
-
-                if (data.success) {
-                    menuItems = data.menu || [];
-                    renderMenuManagement();
-                }
-            } catch (error) {
-                console.error('Error fetching menu:', error);
-            }
-        }
-
-        async function markAsCollected(orderId) {
-            try {
-                const response = await fetch('/api/admin/order/collect', {
-                    method: 'POST',
-                    headers: authHeaders(),
-                    body: JSON.stringify({ order_id: orderId })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    const order = allOrders.find(o => o.id === orderId);
-                    if (order) {
-                        order.order_status = 'COLLECTED';
-                        order.collected_at = new Date().toISOString();
-                    }
-                    updateStats();
-                    renderOrders();
-                    showToast(`Order #${orderId.toUpperCase()} marked as collected`);
-                } else {
-                    showToast(data.error || 'Failed to mark as collected', 'error');
-                }
-            } catch (error) {
-                console.error('Error marking order:', error);
-                showToast('Connection error. Please try again.', 'error');
-            }
-        }
-
-        async function toggleItemAvailability(itemId, available) {
-            try {
-                const response = await fetch('/api/admin/menu/toggle', {
-                    method: 'POST',
-                    headers: authHeaders(),
-                    body: JSON.stringify({ itemId, available })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    const item = menuItems.find(i => i.id === itemId);
-                    if (item) item.available = available;
-                    renderMenuManagement();
-                    showToast(data.message);
-                } else {
-                    showToast(data.error || 'Failed to update', 'error');
-                }
-            } catch (error) {
-                console.error('Error toggling item:', error);
-                showToast('Connection error', 'error');
-            }
-        }
-
-        async function bulkToggle(available) {
-            try {
-                const response = await fetch('/api/admin/menu/bulk-toggle', {
-                    method: 'POST',
-                    headers: authHeaders(),
-                    body: JSON.stringify({ available })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    menuItems.forEach(item => item.available = available);
-                    renderMenuManagement();
-                    showToast(data.message);
-                } else {
-                    showToast(data.error || 'Failed to update', 'error');
-                }
-            } catch (error) {
-                showToast('Connection error', 'error');
-            }
-        }
-
-        // ============================================
-        // Add / Edit / Delete Menu Items
-        // ============================================
-        let selectedEmoji = '🍽️';
-
-        function openAddItemModal() {
-            document.getElementById('itemModalTitle').textContent = '➕ Add New Item';
-            document.getElementById('itemSubmitBtn').textContent = '➕ Add to Menu';
-            document.getElementById('itemName').value = '';
-            document.getElementById('itemPrice').value = '';
-            document.getElementById('itemCategory').value = '';
-            document.getElementById('editItemId').value = '';
-            selectedEmoji = '🍽️';
-            document.querySelectorAll('.emoji-option').forEach(btn => {
-                btn.classList.toggle('selected', btn.dataset.emoji === selectedEmoji);
-            });
-            document.getElementById('itemModal').classList.add('active');
-        }
-
-        function openEditItemModal(itemId) {
-            const item = menuItems.find(i => i.id === itemId);
-            if (!item) return;
-
-            document.getElementById('itemModalTitle').textContent = '✏️ Edit Item';
-            document.getElementById('itemSubmitBtn').textContent = '💾 Save Changes';
-            document.getElementById('itemName').value = item.name;
-            document.getElementById('itemPrice').value = item.price;
-            document.getElementById('itemCategory').value = item.category || '';
-            document.getElementById('editItemId').value = item.id;
-            selectedEmoji = item.emoji || '🍽️';
-            document.querySelectorAll('.emoji-option').forEach(btn => {
-                btn.classList.toggle('selected', btn.dataset.emoji === selectedEmoji);
-            });
-            document.getElementById('itemModal').classList.add('active');
-        }
-
-        function closeItemModal() {
-            document.getElementById('itemModal').classList.remove('active');
-        }
-
-        async function submitItem() {
-            const name = document.getElementById('itemName').value.trim();
-            const price = parseInt(document.getElementById('itemPrice').value);
-            const category = document.getElementById('itemCategory').value;
-            const editItemId = document.getElementById('editItemId').value;
-
-            if (!name) {
-                showToast('Please enter an item name', 'error');
-                return;
-            }
-            if (!price || price <= 0) {
-                showToast('Please enter a valid price', 'error');
-                return;
-            }
-            if (!category) {
-                showToast('Please select a category', 'error');
-                return;
-            }
-
-            const btn = document.getElementById('itemSubmitBtn');
-            btn.disabled = true;
-            btn.textContent = '⏳ Saving...';
-
-            try {
-                let url, method, body;
-
-                if (editItemId) {
-                    // Edit mode
-                    url = '/api/admin/menu/edit';
-                    method = 'PUT';
-                    body = { itemId: editItemId, name, price, category, emoji: selectedEmoji };
-                } else {
-                    // Add mode
-                    url = '/api/admin/menu/add';
-                    method = 'POST';
-                    body = { name, price, category, emoji: selectedEmoji };
-                }
-
-                const response = await fetch(url, {
-                    method,
-                    headers: authHeaders(),
-                    body: JSON.stringify(body)
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    showToast(data.message);
-                    closeItemModal();
-                    await fetchMenu();
-                } else {
-                    showToast(data.error || 'Failed to save item', 'error');
-                }
-            } catch (error) {
-                console.error('Error saving item:', error);
-                showToast('Connection error. Please try again.', 'error');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = editItemId ? '💾 Save Changes' : '➕ Add to Menu';
-            }
-        }
-
-        async function deleteItem(itemId, itemName) {
-            if (!confirm(`Are you sure you want to delete "${itemName}"? This cannot be undone.`)) return;
-
-            try {
-                const response = await fetch('/api/admin/menu/delete', {
-                    method: 'DELETE',
-                    headers: authHeaders(),
-                    body: JSON.stringify({ itemId })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    showToast(data.message);
-                    await fetchMenu();
-                } else {
-                    showToast(data.error || 'Failed to delete item', 'error');
-                }
-            } catch (error) {
-                console.error('Error deleting item:', error);
-                showToast('Connection error. Please try again.', 'error');
-            }
-        }
-
-        // ============================================
-        // Rendering
-        // ============================================
-        function updateStats() {
-            const total = allOrders.length;
-            const pending = allOrders.filter(o => o.order_status !== 'COLLECTED');
-            const collected = allOrders.filter(o => o.order_status === 'COLLECTED');
-            const revenue = allOrders.reduce((sum, o) => sum + o.total_amount, 0);
-
-            document.getElementById('totalOrders').textContent = total;
-            document.getElementById('pendingOrders').textContent = pending.length;
-            document.getElementById('collectedOrders').textContent = collected.length;
-            document.getElementById('totalRevenue').textContent = '₹' + revenue;
-        }
-
-        function renderOrders() {
-            const container = document.getElementById('ordersList');
-            let filteredOrders = allOrders;
-
-            if (currentFilter === 'pending') {
-                filteredOrders = allOrders.filter(o => o.order_status !== 'COLLECTED');
-            } else if (currentFilter === 'collected') {
-                filteredOrders = allOrders.filter(o => o.order_status === 'COLLECTED');
-            }
-
-            if (filteredOrders.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="icon">📭</div>
-                        <h3>No orders found</h3>
-                        <p>${currentFilter === 'all' ? 'Waiting for orders...' : 'No ' + currentFilter + ' orders'}</p>
-                    </div>
-                `;
-                return;
-            }
-
-            container.innerHTML = filteredOrders.map(order => `
-                <div class="order-card ${order.order_status === 'COLLECTED' ? 'collected' : ''}">
-                    <div class="order-header">
-                        <div class="order-id-badge">
-                            <span class="id">#${order.id.toUpperCase()}</span>
-                            <span class="order-status ${order.order_status === 'COLLECTED' ? 'collected' : 'paid'}">
-                                ${order.order_status === 'COLLECTED' ? 'Collected' : 'Ready'}
-                            </span>
-                        </div>
-                    </div>
-                    <div class="order-body">
-                        <div class="order-meta">
-                            <div class="meta-item">
-                                <span class="meta-label">Register Number</span>
-                                <span class="meta-value">${order.student_id}</span>
-                            </div>
-                            <div class="meta-item">
-                                <span class="meta-label">Student Name</span>
-                                <span class="meta-value">${order.student_name || '-'}</span>
-                            </div>
-                            <div class="meta-item">
-                                <span class="meta-label">Order Time</span>
-                                <span class="meta-value">${formatTime(order.created_at)}</span>
-                            </div>
-                            ${order.collected_at ? `
-                            <div class="meta-item">
-                                <span class="meta-label">Collected At</span>
-                                <span class="meta-value">${formatTime(order.collected_at)}</span>
-                            </div>
-                            ` : ''}
-                        </div>
-                        <div class="order-items-list">
-                            ${order.items.map(item => `
-                                <div class="order-item-row">
-                                    <span>${item.emoji}</span>
-                                    <span>${item.name}</span>
-                                    <span class="qty">×${item.quantity}</span>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                    <div class="order-footer">
-                        <span class="order-total">₹${order.total_amount}</span>
-                        ${order.order_status === 'COLLECTED' ? `
-                            <span class="collected-badge">
-                                <span>✓</span>
-                                <span>Collected</span>
-                            </span>
-                        ` : `
-                            <button class="collect-btn" data-order-id="${order.id}">
-                                <span>✓</span>
-                                <span>Mark Collected</span>
-                            </button>
-                        `}
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function renderMenuManagement() {
-            const grid = document.getElementById('adminMenuGrid');
-            const availableItems = menuItems.filter(i => i.available);
-            const unavailableItems = menuItems.filter(i => !i.available);
-
-            document.getElementById('availableCount').textContent = availableItems.length;
-            document.getElementById('unavailableCount').textContent = unavailableItems.length;
-
-            if (menuItems.length === 0) {
-                grid.innerHTML = `
-                    <div class="empty-state">
-                        <div class="icon">🍽️</div>
-                        <h3>No menu items</h3>
-                        <p>Menu data not loaded</p>
-                    </div>
-                `;
-                return;
-            }
-
-            grid.innerHTML = menuItems.map(item => `
-                <div class="menu-manage-card ${item.available ? '' : 'unavailable'}" data-item-id="${item.id}">
-                    <div class="menu-manage-header">
-                        <span class="menu-manage-emoji">${item.emoji}</span>
-                        <div class="menu-manage-info">
-                            <span class="menu-manage-name">${item.name}</span>
-                            <span class="menu-manage-price">₹${item.price} · ${item.category || 'Uncategorized'}</span>
-                        </div>
-                        <div class="menu-manage-actions">
-                            <button class="icon-btn edit-item-btn" data-item-id="${item.id}" title="Edit">
-                                ✏️
-                            </button>
-                            <button class="icon-btn delete-item-btn" data-item-id="${item.id}" data-item-name="${item.name}" title="Delete">
-                                🗑️
-                            </button>
-                        </div>
-                    </div>
-                    <div class="menu-manage-footer">
-                        <span class="availability-badge ${item.available ? 'available' : 'unavailable'}">
-                            ${item.available ? '✅ Available' : '❌ Sold Out'}
-                        </span>
-                        <label class="toggle-switch">
-                            <input type="checkbox" ${item.available ? 'checked' : ''} 
-                                data-item-id="${item.id}" 
-                                class="toggle-input">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function formatTime(dateString) {
-            const date = new Date(dateString);
-            const now = new Date();
-            const isToday = date.toDateString() === now.toDateString();
-
-            const timeOptions = { hour: '2-digit', minute: '2-digit', hour12: true };
-
-            if (isToday) {
-                return 'Today ' + date.toLocaleTimeString('en-IN', timeOptions);
-            }
-
-            return date.toLocaleDateString('en-IN', {
-                day: '2-digit', month: 'short', ...timeOptions
-            });
-        }
-
-        // ============================================
-        // QR Scanner
-        // ============================================
-        let html5QrcodeScanner = null;
-
-        function initializeScanner() {
-            document.getElementById('scannerModal').classList.add('active');
-
-            if (!html5QrcodeScanner) {
-                html5QrcodeScanner = new Html5Qrcode("reader");
-            }
-
-            html5QrcodeScanner.start(
-                { facingMode: "environment" },
-                { fps: 10, qrbox: { width: 250, height: 250 } },
-                onScanSuccess,
-                () => { }
-            ).catch(err => {
-                console.error("Error starting scanner", err);
-                showToast("Failed to start camera. Check permissions.", 'error');
-            });
-        }
-
-        async function onScanSuccess(decodedText) {
-            let orderId = null;
-
-            if (decodedText.startsWith('SATHYABAMA-CANTEEN')) {
-                const parts = decodedText.split('|');
-                const orderPart = parts.find(p => p.startsWith('Order:'));
-                if (orderPart) orderId = orderPart.split(':')[1];
-            } else if (decodedText.length < 20) {
-                orderId = decodedText;
-            }
-
-            if (orderId) {
-                orderId = orderId.trim().toLowerCase();
-                stopScanner();
-                if (confirm(`Order found: #${orderId.toUpperCase()}. Mark as collected?`)) {
-                    await markAsCollected(orderId);
-                }
-            } else {
-                showToast("Invalid QR Code format", 'error');
-            }
-        }
-
-        function stopScanner() {
-            if (html5QrcodeScanner) {
-                html5QrcodeScanner.stop().then(() => {
-                    document.getElementById('scannerModal').classList.remove('active');
-                }).catch(err => console.error("Failed to stop scanner", err));
-            }
-        }
-
-        // ============================================
-        // Event Listeners
-        // ============================================
-        function setupEventListeners() {
-            // Tab switching
-            document.querySelectorAll('.admin-tab').forEach(tab => {
-                tab.addEventListener('click', () => {
-                    document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
-                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-                    tab.classList.add('active');
-                    currentTab = tab.dataset.tab;
-                    document.getElementById(currentTab + 'Tab').classList.add('active');
-
-                    // Hide/show stats based on tab
-                    document.getElementById('statsSection').style.display = currentTab === 'orders' ? '' : 'none';
-                });
-            });
-
-            // Scan Button
-            document.getElementById('scanBtn').addEventListener('click', initializeScanner);
-            document.getElementById('closeScannerModal').addEventListener('click', stopScanner);
-
-            // Refresh button
-            document.getElementById('refreshBtn').addEventListener('click', () => {
-                const btn = document.getElementById('refreshBtn');
-                btn.disabled = true;
-                btn.querySelector('.btn-label').textContent = 'Loading...';
-
-                Promise.all([fetchOrders(), fetchMenu()]).finally(() => {
-                    btn.disabled = false;
-                    btn.querySelector('.btn-label').textContent = 'Refresh';
-                    showToast('Data refreshed');
-                });
-            });
-
-            // Logout button
-            document.getElementById('logoutBtn').addEventListener('click', async () => {
-                if (!confirm('Are you sure you want to logout?')) return;
-
-                try {
-                    await fetch('/api/admin/logout', {
-                        method: 'POST',
-                        headers: authHeaders()
-                    });
-                } catch { }
-
-                localStorage.removeItem('adminToken');
-                localStorage.removeItem('adminCanteenId');
-                localStorage.removeItem('adminCanteenName');
-                window.location.href = '/admin-login';
-            });
-
-            // Filter tabs
-            document.querySelector('.filter-tabs').addEventListener('click', (e) => {
-                if (e.target.classList.contains('filter-btn')) {
-                    document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-                    e.target.classList.add('active');
-                    currentFilter = e.target.dataset.filter;
-                    renderOrders();
-                }
-            });
-
-            // Collect button (event delegation)
-            document.getElementById('ordersList').addEventListener('click', async (e) => {
-                const collectBtn = e.target.closest('.collect-btn');
-                if (collectBtn) {
-                    const orderId = collectBtn.dataset.orderId;
-                    collectBtn.disabled = true;
-                    collectBtn.innerHTML = '<span>⏳</span><span>Processing...</span>';
-                    await markAsCollected(orderId);
-                }
-            });
-
-            // Menu toggle (event delegation)
-            document.getElementById('adminMenuGrid').addEventListener('change', (e) => {
-                if (e.target.classList.contains('toggle-input')) {
-                    const itemId = e.target.dataset.itemId;
-                    const available = e.target.checked;
-                    toggleItemAvailability(itemId, available);
-                }
-            });
-
-            // Bulk actions
-            document.getElementById('bulkAvailableBtn').addEventListener('click', () => {
-                if (confirm('Mark ALL items as available?')) bulkToggle(true);
-            });
-
-            document.getElementById('bulkUnavailableBtn').addEventListener('click', () => {
-                if (confirm('Mark ALL items as unavailable?')) bulkToggle(false);
-            });
-
-            // Add Item button
-            document.getElementById('addItemBtn').addEventListener('click', openAddItemModal);
-            document.getElementById('closeItemModal').addEventListener('click', closeItemModal);
-            document.getElementById('itemSubmitBtn').addEventListener('click', submitItem);
-
-            // Emoji picker
-            document.getElementById('emojiPicker').addEventListener('click', (e) => {
-                const btn = e.target.closest('.emoji-option');
-                if (btn) {
-                    selectedEmoji = btn.dataset.emoji;
-                    document.querySelectorAll('.emoji-option').forEach(b => b.classList.remove('selected'));
-                    btn.classList.add('selected');
-                }
-            });
-
-            // Edit & Delete buttons (event delegation)
-            document.getElementById('adminMenuGrid').addEventListener('click', (e) => {
-                const editBtn = e.target.closest('.edit-item-btn');
-                const deleteBtn = e.target.closest('.delete-item-btn');
-
-                if (editBtn) {
-                    openEditItemModal(editBtn.dataset.itemId);
-                }
-                if (deleteBtn) {
-                    deleteItem(deleteBtn.dataset.itemId, deleteBtn.dataset.itemName);
-                }
-            });
-        }
-    </script>
+    <script src="js/admin.js"></script>
 
     <style>
         /* Admin Tabs */
@@ -1517,6 +863,288 @@
 
         .edit-item-btn:hover {
             background: #e0e7ff;
+        }
+
+        /* Admin Search Bar */
+        .admin-search-bar {
+            margin-bottom: var(--space-lg);
+        }
+
+        .admin-search-bar .search-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .admin-search-bar .search-icon {
+            position: absolute;
+            left: 14px;
+            font-size: 1rem;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .admin-search-bar input {
+            width: 100%;
+            padding: 10px 40px 10px 42px;
+            font-size: 0.9375rem;
+            font-family: inherit;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-full);
+            background: white;
+            color: var(--gray-900);
+            outline: none;
+            transition: all var(--transition-fast);
+        }
+
+        .admin-search-bar input:focus {
+            border-color: var(--primary-500);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+
+        .admin-search-bar input::placeholder {
+            color: var(--gray-400);
+        }
+
+        .admin-search-bar .search-clear {
+            position: absolute;
+            right: 10px;
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: var(--gray-200);
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 0.75rem;
+            color: var(--gray-600);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-fast);
+        }
+
+        .admin-search-bar .search-clear:hover {
+            background: var(--gray-300);
+        }
+
+        .admin-search-bar .search-clear.hidden {
+            display: none;
+        }
+
+        /* Image Upload */
+        .image-upload-area {
+            border: 2px dashed var(--gray-300);
+            border-radius: var(--radius-lg);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            overflow: hidden;
+        }
+
+        .image-upload-area:hover {
+            border-color: var(--primary-400);
+            background: var(--primary-50, #eef2ff);
+        }
+
+        .image-upload-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: var(--space-lg);
+            color: var(--gray-500);
+            font-size: 0.875rem;
+        }
+
+        .upload-icon {
+            font-size: 1.5rem;
+        }
+
+        .upload-hint {
+            font-size: 0.75rem;
+            color: var(--gray-400);
+        }
+
+        .image-preview-container {
+            position: relative;
+            width: 100%;
+            max-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--gray-50);
+        }
+
+        .image-preview-container img {
+            width: 100%;
+            max-height: 200px;
+            object-fit: cover;
+        }
+
+        .remove-image-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-fast);
+        }
+
+        .remove-image-btn:hover {
+            background: rgba(220, 38, 38, 0.8);
+        }
+
+        /* Veg / Non-Veg Selector */
+        .food-type-selector {
+            display: flex;
+            gap: var(--space-md);
+        }
+
+        .food-type-option {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            padding: 8px 16px;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 600;
+            transition: all var(--transition-fast);
+            flex: 1;
+            justify-content: center;
+        }
+
+        .food-type-option input[type="radio"] {
+            display: none;
+        }
+
+        .food-type-indicator {
+            width: 16px;
+            height: 16px;
+            border: 2px solid;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .veg-indicator {
+            border-color: #16a34a;
+        }
+
+        .veg-indicator::after {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #16a34a;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .nonveg-indicator {
+            border-color: #dc2626;
+        }
+
+        .nonveg-indicator::after {
+            content: '';
+            width: 0;
+            height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-bottom: 8px solid #dc2626;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .food-type-option input[type="radio"]:checked~.veg-indicator::after,
+        .food-type-option input[type="radio"]:checked~.nonveg-indicator::after {
+            opacity: 1;
+        }
+
+        .veg-option:has(input:checked) {
+            border-color: #16a34a;
+            background: #f0fdf4;
+            color: #166534;
+        }
+
+        .nonveg-option:has(input:checked) {
+            border-color: #dc2626;
+            background: #fef2f2;
+            color: #991b1b;
+        }
+
+        /* Veg/Non-Veg Badge */
+        .veg-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 0.6875rem;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: var(--radius-sm, 4px);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .veg-badge.veg {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+
+        .veg-badge.nonveg {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .veg-dot {
+            width: 8px;
+            height: 8px;
+            border: 1.5px solid;
+            border-radius: 2px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .veg-dot.veg {
+            border-color: #16a34a;
+        }
+
+        .veg-dot.nonveg {
+            border-color: #dc2626;
+        }
+
+        .veg-dot::after {
+            content: '';
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+        }
+
+        .veg-dot.veg::after {
+            background: #16a34a;
+        }
+
+        .veg-dot.nonveg::after {
+            border-radius: 0;
+            width: 0;
+            height: 0;
+            border-left: 2.5px solid transparent;
+            border-right: 2.5px solid transparent;
+            border-bottom: 4px solid #dc2626;
         }
     </style>
 </body>
