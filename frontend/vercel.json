@@ -1,0 +1,10 @@
+{
+  "rewrites": [
+    { "source": "/admin-login", "destination": "/admin-login.html" },
+    { "source": "/admin", "destination": "/admin.html" },
+    { "source": "/select-canteen", "destination": "/canteen-select.html" },
+    { "source": "/menu", "destination": "/menu.html" },
+    { "source": "/dashboard", "destination": "/dashboard.html" },
+    { "source": "/receipt", "destination": "/receipt.html" }
+  ]
+}
