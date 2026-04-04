@@ -5,7 +5,7 @@
 
 const express = require('express');
 const bcrypt = require('bcrypt');
-const supabase = require('../supabaseClient');
+const supabase = require('../../supabaseClient');
 
 const router = express.Router();
 

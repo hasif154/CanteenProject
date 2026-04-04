@@ -11,6 +11,22 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .success-message {
+            display: none;
+            align-items: center;
+            gap: var(--space-sm);
+            padding: var(--space-md);
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.4);
+            border-radius: var(--radius-lg);
+            color: #22c55e;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-top: var(--space-sm);
+        }
+        .success-message.show { display: flex; }
+    </style>
 </head>
 
 <body class="login-page">
@@ -69,7 +85,7 @@
             </form>
 
             <div style="text-align:center; margin-top: var(--space-md);">
-                <a href="/forgot"
+                <a href="#" id="forgotPasswordLink"
                     style="color: var(--primary-500); text-decoration: none; font-size: 0.875rem; font-weight: 500;">
                     Forgot Password?
                 </a>
