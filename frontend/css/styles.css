@@ -130,7 +130,7 @@ body {
 .bg-image {
     position: absolute;
     inset: 0;
-    background-image: url('campus-bg.png');
+    background-image: url('../assets/campus-bg.png');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;

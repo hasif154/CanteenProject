@@ -14,6 +14,7 @@ const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcrypt');
 const multer = require('multer');
 const supabase = require('./supabaseClient');
+const forgotPasswordRoute = require('./routes/forgotPassword');
 
 // ============================================
 // Multer Configuration (Image Uploads)
@@ -224,6 +225,10 @@ app.get('/admin', (req, res) => {
 
 app.get('/dashboard', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/dashboard.html'));
+});
+
+app.get('/forgot', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/forgot.html'));
 });
 
 // ============================================
@@ -873,6 +878,11 @@ app.post('/api/payment/verify', (req, res) => {
 
     res.json({ success: true, message: 'Payment verified successfully', order });
 });
+
+// ============================================
+// API: Forgot Password (separate route module)
+// ============================================
+app.use('/api', forgotPasswordRoute);
 
 // ============================================
 // Start Server
