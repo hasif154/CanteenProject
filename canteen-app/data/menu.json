@@ -1,0 +1,278 @@
+{
+  "canteens": {
+    "advanced-canteen": {
+      "name": "Advance Block Canteen",
+      "menuVersion": 1,
+      "lastUpdated": "2026-04-04",
+      "items": [
+        {
+          "id": "biryani",
+          "name": "Biryani",
+          "price": 80,
+          "category": "Main Course",
+          "emoji": "🍛",
+          "isVeg": false,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "fried-rice",
+          "name": "Fried Rice",
+          "price": 50,
+          "category": "Main Course",
+          "emoji": "🍚",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "noodles",
+          "name": "Noodles",
+          "price": 45,
+          "category": "Main Course",
+          "emoji": "🍜",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "sandwich",
+          "name": "Sandwich",
+          "price": 35,
+          "category": "Snacks",
+          "emoji": "🥪",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "burger",
+          "name": "Burger",
+          "price": 50,
+          "category": "Snacks",
+          "emoji": "🍔",
+          "isVeg": false,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "wrap",
+          "name": "Wrap",
+          "price": 45,
+          "category": "Snacks",
+          "emoji": "🌯",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "panipoori",
+          "name": "Panipoori",
+          "price": 30,
+          "category": "Chaat",
+          "emoji": "🥙",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "samosa",
+          "name": "Samosa",
+          "price": 15,
+          "category": "Snacks",
+          "emoji": "🥟",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "chat",
+          "name": "Chat",
+          "price": 35,
+          "category": "Chaat",
+          "emoji": "🥗",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "pizza",
+          "name": "Pizza",
+          "price": 70,
+          "category": "North Indian",
+          "emoji": "🍕",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "ice-cream",
+          "name": "Ice Cream",
+          "price": 25,
+          "category": "Desserts",
+          "emoji": "🍦",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "cold-coffee",
+          "name": "Cold Coffee",
+          "price": 40,
+          "category": "Beverages",
+          "emoji": "☕",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "lassi",
+          "name": "Lassi",
+          "price": 30,
+          "category": "Beverages",
+          "emoji": "🥛",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "choclate",
+          "name": "Choclate",
+          "price": 20,
+          "category": "Desserts",
+          "emoji": "🍫",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "kitkat",
+          "name": "kitkat",
+          "price": 25,
+          "category": "chocolate",
+          "emoji": null,
+          "isVeg": true,
+          "image": null,
+          "available": true
+        }
+      ]
+    },
+    "main-canteen": {
+      "name": "Main Canteen",
+      "menuVersion": 1,
+      "lastUpdated": "2026-04-04",
+      "items": [
+        {
+          "id": "kothu-parota",
+          "name": "Kothu Parota",
+          "price": 60,
+          "category": "South Indian",
+          "emoji": "🫓",
+          "isVeg": false,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "chapati",
+          "name": "Chapati",
+          "price": 15,
+          "category": "South Indian",
+          "emoji": "🫓",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "meals",
+          "name": "Full Meals",
+          "price": 70,
+          "category": "South Indian",
+          "emoji": "🍽️",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "idli",
+          "name": "Idli (2 pcs)",
+          "price": 20,
+          "category": "South Indian",
+          "emoji": "🫓",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "dosa",
+          "name": "Masala Dosa",
+          "price": 40,
+          "category": "South Indian",
+          "emoji": "🥞",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "pongal",
+          "name": "Ven Pongal",
+          "price": 30,
+          "category": "South Indian",
+          "emoji": "🍲",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "poori",
+          "name": "Poori (2 pcs)",
+          "price": 25,
+          "category": "South Indian",
+          "emoji": "🫓",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "sambar-rice",
+          "name": "Sambar Rice",
+          "price": 35,
+          "category": "South Indian",
+          "emoji": "🍚",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "curd-rice",
+          "name": "Curd Rice",
+          "price": 30,
+          "category": "South Indian",
+          "emoji": "🍚",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "tea",
+          "name": "Tea",
+          "price": 10,
+          "category": "Beverages",
+          "emoji": "🍵",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        },
+        {
+          "id": "coffee-main",
+          "name": "Coffee",
+          "price": 15,
+          "category": "Beverages",
+          "emoji": "☕",
+          "isVeg": true,
+          "image": null,
+          "available": true
+        }
+      ]
+    }
+  }
+}
